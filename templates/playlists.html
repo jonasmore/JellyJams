@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Playlists - JellyJams{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-list text-primary me-2"></i>Playlist Management
+        </h1>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Search playlists...">
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="filterPlaylists('all')">
+                <i class="fas fa-list me-1"></i>All ({{ playlists|length }})
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="filterPlaylists('genre')">
+                <i class="fas fa-music me-1"></i>Genres
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="filterPlaylists('year')">
+                <i class="fas fa-calendar me-1"></i>Years
+            </button>
+            <button type="button" class="btn btn-outline-warning" onclick="filterPlaylists('artist')">
+                <i class="fas fa-user me-1"></i>Artists
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row" id="playlistsContainer">
+    {% for playlist in playlists %}
+        <div class="col-md-6 col-lg-4 mb-3 playlist-item" 
+             data-name="{{ playlist.name.lower() }}"
+             data-type="{% if 'Genre:' in playlist.name %}genre{% elif 'Year:' in playlist.name %}year{% elif 'Artist:' in playlist.name %}artist{% else %}other{% endif %}">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        {% if 'Genre:' in playlist.name %}
+                            <i class="fas fa-music text-success me-1"></i>
+                        {% elif 'Year:' in playlist.name %}
+                            <i class="fas fa-calendar text-info me-1"></i>
+                        {% elif 'Artist:' in playlist.name %}
+                            <i class="fas fa-user text-warning me-1"></i>
+                        {% else %}
+                            <i class="fas fa-list text-secondary me-1"></i>
+                        {% endif %}
+                        {{ playlist.name }}
+                    </h6>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="viewPlaylist('{{ playlist.name }}')">
+                                    <i class="fas fa-eye me-1"></i>View Details
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="#" onclick="deletePlaylist('{{ playlist.name }}')">
+                                    <i class="fas fa-trash me-1"></i>Delete
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h5 class="text-primary mb-0">{{ playlist.track_count }}</h5>
+                            <small class="text-muted">Tracks</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-secondary mb-0">{{ "%.1f"|format(playlist.size / 1024) }} KB</h5>
+                            <small class="text-muted">Size</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="small text-muted">
+                        <div class="d-flex justify-content-between">
+                            <span><i class="fas fa-plus me-1"></i>Created:</span>
+                            <span>{{ playlist.created }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span><i class="fas fa-edit me-1"></i>Modified:</span>
+                            <span>{{ playlist.modified }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+    
+    {% if not playlists %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-music fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Playlists Found</h4>
+                    <p class="text-muted">Generate some playlists to get started!</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Playlist Details Modal -->
+<div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playlistModalTitle">Playlist Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="playlistModalBody">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the playlist <strong id="deletePlaylistName"></strong>?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+
+$(document).ready(function() {
+    // Search functionality
+    $('#searchInput').on('input', function() {
+        filterPlaylists(currentFilter);
+    });
+    
+    // Set initial filter button state
+    $('button[onclick="filterPlaylists(\'all\')"]').addClass('active');
+});
+
+function filterPlaylists(type) {
+    currentFilter = type;
+    const searchTerm = $('#searchInput').val().toLowerCase();
+    
+    // Update button states
+    $('.btn-group button').removeClass('active');
+    $(`button[onclick="filterPlaylists('${type}')"]`).addClass('active');
+    
+    $('.playlist-item').each(function() {
+        const $item = $(this);
+        const name = $item.data('name');
+        const itemType = $item.data('type');
+        
+        const matchesSearch = name.includes(searchTerm);
+        const matchesType = type === 'all' || itemType === type;
+        
+        if (matchesSearch && matchesType) {
+            $item.show();
+        } else {
+            $item.hide();
+        }
+    });
+}
+
+function viewPlaylist(playlistName) {
+    $('#playlistModalTitle').text(playlistName);
+    $('#playlistModalBody').html(`
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `);
+    
+    const modal = new bootstrap.Modal(document.getElementById('playlistModal'));
+    modal.show();
+    
+    // Load playlist details (this would need to be implemented in the backend)
+    // For now, show basic info
+    setTimeout(() => {
+        $('#playlistModalBody').html(`
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Playlist details view is not yet implemented. This would show the full track listing and metadata.
+            </div>
+            <p><strong>Playlist:</strong> ${playlistName}</p>
+            <p><strong>Location:</strong> /app/playlists/${playlistName}/playlist.xml</p>
+        `);
+    }, 1000);
+}
+
+function deletePlaylist(playlistName) {
+    $('#deletePlaylistName').text(playlistName);
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+    
+    $('#confirmDeleteBtn').off('click').on('click', function() {
+        const button = $(this);
+        const originalText = button.html();
+        showSpinner(button);
+        
+        $.ajax({
+            url: '/api/delete_playlist',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ playlist_name: playlistName }),
+            success: function(data) {
+                hideSpinner(button, originalText);
+                modal.hide();
+                
+                if (data.success) {
+                    showAlert('Playlist deleted successfully!', 'success');
+                    // Remove the playlist card from the page
+                    $(`.playlist-item[data-name="${playlistName.toLowerCase()}"]`).fadeOut(300, function() {
+                        $(this).remove();
+                        
+                        // Check if no playlists remain
+                        if ($('.playlist-item').length === 0) {
+                            $('#playlistsContainer').html(`
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body text-center py-5">
+                                            <i class="fas fa-music fa-3x text-muted mb-3"></i>
+                                            <h4 class="text-muted">No Playlists Found</h4>
+                                            <p class="text-muted">Generate some playlists to get started!</p>
+                                            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                                                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            `);
+                        }
+                    });
+                } else {
+                    showAlert('Failed to delete playlist: ' + data.message, 'danger');
+                }
+            },
+            error: function() {
+                hideSpinner(button, originalText);
+                modal.hide();
+                showAlert('Error deleting playlist.', 'danger');
+            }
+        });
+    });
+}
+</script>
+{% endblock %}

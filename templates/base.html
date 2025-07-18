@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}JellyJams - Jellyfin Playlist Generator{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --secondary-color: #6366f1;
+            --accent-color: #06b6d4;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-bg: #0f172a;
+            --darker-bg: #020617;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+        }
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--dark-bg) 0%, var(--darker-bg) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .navbar {
+            background: rgba(30, 41, 59, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            margin: 0 4px;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            color: var(--primary-color) !important;
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .card-header {
+            background: rgba(139, 92, 246, 0.1);
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 16px 16px 0 0 !important;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-color), var(--primary-hover));
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 12px 24px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(139, 92, 246, 0.4);
+            background: linear-gradient(45deg, var(--primary-hover), var(--primary-color));
+        }
+        
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            border-radius: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+        
+        .btn-success {
+            background: linear-gradient(45deg, var(--success-color), #059669);
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, var(--danger-color), #dc2626);
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, var(--warning-color), #d97706);
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            color: #000;
+        }
+        
+        .form-control, .form-select {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: var(--card-bg);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(139, 92, 246, 0.25);
+            color: var(--text-primary);
+        }
+        
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .text-primary {
+            color: var(--primary-color) !important;
+        }
+        
+        .text-success {
+            color: var(--success-color) !important;
+        }
+        
+        .text-warning {
+            color: var(--warning-color) !important;
+        }
+        
+        .text-danger {
+            color: var(--danger-color) !important;
+        }
+        
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+        
+        .badge {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 6px 12px;
+        }
+        
+        .badge.bg-primary {
+            background: var(--primary-color) !important;
+        }
+        
+        .badge.bg-success {
+            background: var(--success-color) !important;
+        }
+        
+        .badge.bg-warning {
+            background: var(--warning-color) !important;
+            color: #000 !important;
+        }
+        
+        .badge.bg-danger {
+            background: var(--danger-color) !important;
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .alert-primary {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--primary-color);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+        
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .table-dark {
+            background: var(--card-bg);
+            border-color: var(--border-color);
+        }
+        
+        .table-dark th {
+            border-color: var(--border-color);
+            background: rgba(139, 92, 246, 0.1);
+            font-weight: 600;
+        }
+        
+        .table-dark td {
+            border-color: var(--border-color);
+        }
+        
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .progress {
+            background: var(--darker-bg);
+            border-radius: 8px;
+            height: 8px;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border-radius: 8px;
+        }
+        
+        .spinner-border {
+            color: var(--primary-color);
+        }
+        
+        .log-container {
+            background: var(--darker-bg);
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 500px;
+            overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-connected {
+            color: var(--success-color);
+        }
+        
+        .status-disconnected {
+            color: var(--danger-color);
+        }
+        
+        .playlist-card {
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--darker-bg);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        /* Status indicators */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background: var(--success-color);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+        
+        .status-offline {
+            background: var(--danger-color);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+        
+        /* Glassmorphism effect */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-music me-2"></i>JellyJams
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('settings') }}">
+                            <i class="fas fa-cog me-1"></i>Settings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('playlists') }}">
+                            <i class="fas fa-list me-1"></i>Playlists
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logs') }}">
+                            <i class="fas fa-file-alt me-1"></i>Logs
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <script>
+        // Global functions
+        function showSpinner(button) {
+            const spinner = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>';
+            button.html(spinner + button.text()).prop('disabled', true);
+        }
+
+        function hideSpinner(button, originalText) {
+            button.html(originalText).prop('disabled', false);
+        }
+
+        function showAlert(message, type = 'success') {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('.container').prepend(alertHtml);
+        }
+
+        // Auto-refresh connection status
+        function updateConnectionStatus() {
+            $.get('/api/jellyfin_test', function(data) {
+                const statusElement = $('#connection-status');
+                if (data.connected) {
+                    statusElement.html('<i class="fas fa-check-circle status-connected"></i> Connected');
+                } else {
+                    statusElement.html('<i class="fas fa-times-circle status-disconnected"></i> Disconnected');
+                }
+            });
+        }
+
+        // Update connection status every 30 seconds
+        setInterval(updateConnectionStatus, 30000);
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

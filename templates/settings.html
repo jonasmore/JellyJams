@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - JellyJams{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-cog text-primary me-2"></i>Settings
+        </h1>
+    </div>
+</div>
+
+<form id="settingsForm">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server me-2"></i>Jellyfin Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="jellyfin_url" class="form-label">Jellyfin URL</label>
+                        <input type="url" class="form-control" id="jellyfin_url" name="jellyfin_url" 
+                               value="{{ settings.jellyfin_url }}" required>
+                        <div class="form-text">URL of your Jellyfin server (e.g., http://jellyfin:8096)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sliders-h me-2"></i>Playlist Limits
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="max_tracks_per_playlist" class="form-label">Maximum Tracks per Playlist</label>
+                        <input type="number" class="form-control" id="max_tracks_per_playlist" 
+                               name="max_tracks_per_playlist" value="{{ settings.max_tracks_per_playlist }}" 
+                               min="1" max="1000" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="min_tracks_per_playlist" class="form-label">Minimum Tracks per Playlist</label>
+                        <input type="number" class="form-control" id="min_tracks_per_playlist" 
+                               name="min_tracks_per_playlist" value="{{ settings.min_tracks_per_playlist }}" 
+                               min="1" max="100" required>
+                        <div class="form-text">Playlists with fewer tracks will not be created</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="shuffle_tracks" 
+                               name="shuffle_tracks" {% if settings.shuffle_tracks %}checked{% endif %}>
+                        <label class="form-check-label" for="shuffle_tracks">
+                            Shuffle tracks in playlists
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Playlist Types
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="type_genre" 
+                               name="playlist_types" value="Genre" 
+                               {% if 'Genre' in settings.playlist_types %}checked{% endif %}>
+                        <label class="form-check-label" for="type_genre">
+                            <i class="fas fa-music me-1"></i>Genre-based playlists
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="type_year" 
+                               name="playlist_types" value="Year" 
+                               {% if 'Year' in settings.playlist_types %}checked{% endif %}>
+                        <label class="form-check-label" for="type_year">
+                            <i class="fas fa-calendar me-1"></i>Year-based playlists
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="type_artist" 
+                               name="playlist_types" value="Artist" 
+                               {% if 'Artist' in settings.playlist_types %}checked{% endif %}>
+                        <label class="form-check-label" for="type_artist">
+                            <i class="fas fa-user me-1"></i>Artist-based playlists
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>Scheduling
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="generation_interval" class="form-label">Generation Interval (hours)</label>
+                        <input type="number" class="form-control" id="generation_interval" 
+                               name="generation_interval" value="{{ settings.generation_interval }}" 
+                               min="1" max="168" required>
+                        <div class="form-text">How often to automatically generate playlists (1-168 hours)</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="auto_generation" 
+                               name="auto_generation" {% if settings.auto_generation %}checked{% endif %}>
+                        <label class="form-check-label" for="auto_generation">
+                            Enable automatic playlist generation
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-ban me-2"></i>Excluded Genres
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="excluded_genres_input" class="form-label">Genres to Exclude</label>
+                        <input type="text" class="form-control" id="excluded_genres_input" 
+                               placeholder="Enter genres separated by commas">
+                        <div class="form-text">Type genre names and press Enter or comma to add them</div>
+                    </div>
+                    <div id="excluded_genres_container">
+                        {% for genre in settings.excluded_genres %}
+                            {% if genre %}
+                                <span class="badge bg-danger me-2 mb-2">
+                                    {{ genre }}
+                                    <button type="button" class="btn-close btn-close-white ms-1" 
+                                            onclick="removeExcludedGenre('{{ genre }}')"></button>
+                                </span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-music me-2"></i>Available Genres
+                    </h5>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                    <div class="row">
+                        {% for genre in available_genres %}
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100" 
+                                        onclick="addExcludedGenre('{{ genre }}')">
+                                    {{ genre }}
+                                </button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if not available_genres %}
+                        <p class="text-muted">No genres found. Connect to Jellyfin to load genres.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-wrench me-2"></i>Advanced Settings
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="log_level" class="form-label">Log Level</label>
+                        <select class="form-select" id="log_level" name="log_level">
+                            <option value="DEBUG" {% if settings.log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                            <option value="INFO" {% if settings.log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                            <option value="WARNING" {% if settings.log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                            <option value="ERROR" {% if settings.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="playlist_folder" class="form-label">Playlist Folder</label>
+                        <input type="text" class="form-control" id="playlist_folder" 
+                               name="playlist_folder" value="{{ settings.playlist_folder }}" readonly>
+                        <div class="form-text">Container internal path (read-only)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+                <div>
+                    <button type="button" class="btn btn-outline-primary me-2" onclick="loadMetadata()">
+                        <i class="fas fa-sync me-1"></i>Refresh Metadata
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let excludedGenres = {{ settings.excluded_genres | tojson | safe }};
+
+$(document).ready(function() {
+    // Handle excluded genres input
+    $('#excluded_genres_input').on('keypress', function(e) {
+        if (e.which === 13 || e.which === 188) { // Enter or comma
+            e.preventDefault();
+            const genre = $(this).val().trim().replace(',', '');
+            if (genre) {
+                addExcludedGenre(genre);
+                $(this).val('');
+            }
+        }
+    });
+
+    // Handle form submission
+    $('#settingsForm').on('submit', function(e) {
+        e.preventDefault();
+        saveSettings();
+    });
+});
+
+function addExcludedGenre(genre) {
+    if (!excludedGenres.includes(genre)) {
+        excludedGenres.push(genre);
+        updateExcludedGenresDisplay();
+    }
+}
+
+function removeExcludedGenre(genre) {
+    excludedGenres = excludedGenres.filter(g => g !== genre);
+    updateExcludedGenresDisplay();
+}
+
+function updateExcludedGenresDisplay() {
+    const container = $('#excluded_genres_container');
+    container.empty();
+    
+    excludedGenres.forEach(genre => {
+        const badge = $(`
+            <span class="badge bg-danger me-2 mb-2">
+                ${genre}
+                <button type="button" class="btn-close btn-close-white ms-1" 
+                        onclick="removeExcludedGenre('${genre}')"></button>
+            </span>
+        `);
+        container.append(badge);
+    });
+}
+
+function saveSettings() {
+    const formData = new FormData($('#settingsForm')[0]);
+    
+    // Get playlist types
+    const playlistTypes = [];
+    $('input[name="playlist_types"]:checked').each(function() {
+        playlistTypes.push($(this).val());
+    });
+    
+    const settings = {
+        jellyfin_url: formData.get('jellyfin_url'),
+        max_tracks_per_playlist: parseInt(formData.get('max_tracks_per_playlist')),
+        min_tracks_per_playlist: parseInt(formData.get('min_tracks_per_playlist')),
+        shuffle_tracks: formData.get('shuffle_tracks') === 'on',
+        playlist_types: playlistTypes,
+        generation_interval: parseInt(formData.get('generation_interval')),
+        auto_generation: formData.get('auto_generation') === 'on',
+        excluded_genres: excludedGenres,
+        log_level: formData.get('log_level'),
+        playlist_folder: formData.get('playlist_folder')
+    };
+    
+    const button = $('button[type="submit"]');
+    const originalText = button.html();
+    showSpinner(button);
+    
+    $.ajax({
+        url: '/api/settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(settings),
+        success: function(data) {
+            hideSpinner(button, originalText);
+            if (data.success) {
+                showAlert('Settings saved successfully!', 'success');
+            } else {
+                showAlert('Failed to save settings: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            hideSpinner(button, originalText);
+            showAlert('Error saving settings.', 'danger');
+        }
+    });
+}
+
+function loadMetadata() {
+    const button = $('button:contains("Refresh Metadata")');
+    const originalText = button.html();
+    showSpinner(button);
+    
+    $.get('/api/metadata', function(data) {
+        hideSpinner(button, originalText);
+        showAlert('Metadata refreshed successfully!', 'success');
+        
+        // Update available genres
+        const genresContainer = $('.card-body .row').first();
+        genresContainer.empty();
+        
+        data.genres.forEach(genre => {
+            const button = $(`
+                <div class="col-md-6 mb-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100" 
+                            onclick="addExcludedGenre('${genre}')">
+                        ${genre}
+                    </button>
+                </div>
+            `);
+            genresContainer.append(button);
+        });
+    }).fail(function() {
+        hideSpinner(button, originalText);
+        showAlert('Error refreshing metadata.', 'danger');
+    });
+}
+</script>
+{% endblock %}

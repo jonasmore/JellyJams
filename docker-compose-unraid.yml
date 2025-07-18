@@ -1,0 +1,27 @@
+services:
+  vibecodeplugin:
+    build: .
+    container_name: vibecodeplugin
+    environment:
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - PLAYLIST_FOLDER=/app/playlists
+      - LOG_LEVEL=INFO
+      - GENERATION_INTERVAL=24
+      - MAX_TRACKS_PER_PLAYLIST=100
+      - MIN_TRACKS_PER_PLAYLIST=5
+      - EXCLUDED_GENRES=
+      - SHUFFLE_TRACKS=true
+      - PLAYLIST_TYPES=Genre,Year,Artist
+      - ENABLE_WEB_UI=true
+      - WEB_PORT=5000
+    volumes:
+      # Bind mount to Unraid appdata directory
+      - /mnt/user/appdata/vibeplaylist/playlists:/app/playlists
+      - /mnt/user/appdata/vibeplaylist/logs:/app/logs
+      - /mnt/user/appdata/vibeplaylist/config:/app/config
+      # Mount to Jellyfin's playlist directory (update path as needed)
+      - /mnt/user/appdata/vibeplaylist/playlistsjelly:/jellyfin/playlists
+    ports:
+      - "5000:5000"
+    restart: unless-stopped

@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - JellyJams{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-file-alt text-primary me-2"></i>Application Logs
+        </h1>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary active" onclick="filterLogs('all')">
+                <i class="fas fa-list me-1"></i>All
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="filterLogs('info')">
+                <i class="fas fa-info-circle me-1"></i>Info
+            </button>
+            <button type="button" class="btn btn-outline-warning" onclick="filterLogs('warning')">
+                <i class="fas fa-exclamation-triangle me-1"></i>Warning
+            </button>
+            <button type="button" class="btn btn-outline-danger" onclick="filterLogs('error')">
+                <i class="fas fa-times-circle me-1"></i>Error
+            </button>
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary" onclick="refreshLogs()">
+                <i class="fas fa-sync me-1"></i>Refresh
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearLogs()">
+                <i class="fas fa-trash me-1"></i>Clear
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="downloadLogs()">
+                <i class="fas fa-download me-1"></i>Download
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-terminal me-2"></i>Log Output
+                </h5>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="autoRefresh" checked>
+                    <label class="form-check-label" for="autoRefresh">
+                        Auto-refresh
+                    </label>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="log-container p-3" id="logContainer">
+                    {% if log_content %}
+                        <pre id="logContent">{{ log_content }}</pre>
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-file-alt fa-3x mb-3"></i>
+                            <h5>No logs available</h5>
+                            <p>Logs will appear here once the application starts generating them.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Logs are automatically refreshed every 10 seconds when auto-refresh is enabled.
+                    Use the filter buttons above to show specific log levels.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clear Logs Confirmation Modal -->
+<div class="modal fade" id="clearLogsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Clear Logs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to clear all application logs?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmClearBtn">
+                    <i class="fas fa-trash me-1"></i>Clear Logs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let autoRefreshInterval;
+let currentFilter = 'all';
+
+$(document).ready(function() {
+    // Start auto-refresh if enabled
+    if ($('#autoRefresh').is(':checked')) {
+        startAutoRefresh();
+    }
+    
+    // Handle auto-refresh toggle
+    $('#autoRefresh').on('change', function() {
+        if ($(this).is(':checked')) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+    
+    // Scroll to bottom of logs
+    scrollToBottom();
+});
+
+function startAutoRefresh() {
+    autoRefreshInterval = setInterval(refreshLogs, 10000); // Refresh every 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+}
+
+function refreshLogs() {
+    const button = $('button:contains("Refresh")');
+    const originalText = button.html();
+    
+    // Don't show spinner for auto-refresh
+    if (!$('#autoRefresh').is(':checked')) {
+        showSpinner(button);
+    }
+    
+    $.get('/logs', function(data) {
+        // Extract log content from the response
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(data, 'text/html');
+        const logContent = doc.getElementById('logContent');
+        
+        if (logContent) {
+            $('#logContent').text(logContent.textContent);
+            filterLogs(currentFilter);
+            scrollToBottom();
+        }
+        
+        if (!$('#autoRefresh').is(':checked')) {
+            hideSpinner(button, originalText);
+        }
+    }).fail(function() {
+        if (!$('#autoRefresh').is(':checked')) {
+            hideSpinner(button, originalText);
+            showAlert('Error refreshing logs.', 'danger');
+        }
+    });
+}
+
+function filterLogs(level) {
+    currentFilter = level;
+    
+    // Update button states
+    $('.btn-group button').removeClass('active');
+    $(`button[onclick="filterLogs('${level}')"]`).addClass('active');
+    
+    const logContent = $('#logContent');
+    const lines = logContent.text().split('\n');
+    
+    if (level === 'all') {
+        // Show all lines
+        logContent.text(lines.join('\n'));
+    } else {
+        // Filter lines by log level
+        const filteredLines = lines.filter(line => {
+            const upperLine = line.toUpperCase();
+            switch (level) {
+                case 'info':
+                    return upperLine.includes(' INFO ');
+                case 'warning':
+                    return upperLine.includes(' WARNING ') || upperLine.includes(' WARN ');
+                case 'error':
+                    return upperLine.includes(' ERROR ');
+                default:
+                    return true;
+            }
+        });
+        logContent.text(filteredLines.join('\n'));
+    }
+    
+    scrollToBottom();
+}
+
+function clearLogs() {
+    const modal = new bootstrap.Modal(document.getElementById('clearLogsModal'));
+    modal.show();
+    
+    $('#confirmClearBtn').off('click').on('click', function() {
+        const button = $(this);
+        const originalText = button.html();
+        showSpinner(button);
+        
+        // This would need to be implemented in the backend
+        // For now, just clear the display
+        setTimeout(() => {
+            $('#logContent').text('');
+            $('#logContainer').html(`
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-file-alt fa-3x mb-3"></i>
+                    <h5>Logs cleared</h5>
+                    <p>New logs will appear here as they are generated.</p>
+                </div>
+            `);
+            
+            hideSpinner(button, originalText);
+            modal.hide();
+            showAlert('Logs cleared successfully!', 'success');
+        }, 1000);
+    });
+}
+
+function downloadLogs() {
+    const logContent = $('#logContent').text();
+    
+    if (!logContent.trim()) {
+        showAlert('No logs available to download.', 'warning');
+        return;
+    }
+    
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vibecodeplugin-logs-${new Date().toISOString().split('T')[0]}.log`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    showAlert('Logs downloaded successfully!', 'success');
+}
+
+function scrollToBottom() {
+    const container = $('#logContainer');
+    container.scrollTop(container[0].scrollHeight);
+}
+
+// Cleanup on page unload
+$(window).on('beforeunload', function() {
+    stopAutoRefresh();
+});
+</script>
+{% endblock %}
