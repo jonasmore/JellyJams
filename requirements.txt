@@ -5,3 +5,5 @@ lxml==4.9.3
 flask==2.3.3
 gunicorn==21.2.0
 spotipy==2.23.0
+Pillow==10.0.1
+numpy==1.24.3

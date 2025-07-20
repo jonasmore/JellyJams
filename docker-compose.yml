@@ -23,6 +23,8 @@ services:
       - jellyjams_logs:/app/logs
       - jellyjams_config:/app/config
       - jellyjams_cover:/app/cover
+      # Music directory for cover art generation (adjust path for your system)
+      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
     ports:
       - "5000:5000"
     restart: unless-stopped

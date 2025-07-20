@@ -36,6 +36,9 @@
                     <i class="fas fa-user me-1"></i>Artists
                 </button>
             </div>
+            <button type="button" class="btn btn-primary" onclick="updateCovers()" id="updateCoversBtn">
+                <i class="fas fa-image me-1"></i>Update Covers
+            </button>
             <button type="button" class="btn btn-danger" onclick="deleteAllPlaylists()">
                 <i class="fas fa-trash-alt me-1"></i>Delete All
             </button>
@@ -515,6 +518,52 @@ function deleteAllPlaylists() {
                 showAlert('Error deleting playlists.', 'danger');
             }
         });
+    });
+}
+
+function updateCovers() {
+    const button = $('#updateCoversBtn');
+    const originalText = button.html();
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Updating Covers...');
+    
+    showAlert('Starting cover art update process...', 'info');
+    
+    $.ajax({
+        url: '/api/update-covers',
+        method: 'POST',
+        contentType: 'application/json',
+        timeout: 300000, // 5 minutes timeout for cover art updates
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            if (data.success) {
+                showAlert(`Cover art update complete! Updated: ${data.updated}, Skipped: ${data.skipped}, Errors: ${data.errors}`, 'success');
+                
+                // Refresh the page to show updated cover art
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showAlert('Failed to update covers: ' + data.message, 'danger');
+            }
+        },
+        error: function(xhr, status, error) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            let errorMessage = 'Failed to update covers';
+            if (status === 'timeout') {
+                errorMessage = 'Cover art update timed out (process may still be running in background)';
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = 'Failed to update covers: ' + xhr.responseJSON.message;
+            }
+            
+            showAlert(errorMessage, 'danger');
+        }
     });
 }
 </script>

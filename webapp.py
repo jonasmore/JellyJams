@@ -4,20 +4,39 @@ JellyJams Web UI - Configuration and Management Interface
 """
 
 import os
+import sys
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
-from vibecodeplugin import Config, PlaylistGenerator, JellyfinAPI
+from vibecodeplugin import Config, PlaylistGenerator, JellyfinAPI, setup_logging, SpotifyClient
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 # Global configuration
 config = Config()
+
+# Setup comprehensive logging for web UI
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+# Disable noisy loggers
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+
 logger = logging.getLogger('JellyJams.WebUI')
+logger.setLevel(logging.DEBUG)
+logger.info("🌐 JellyJams Web UI logging initialized")
 
 class ConfigManager:
     def __init__(self):
@@ -36,18 +55,30 @@ class ConfigManager:
             'max_tracks_per_playlist': config.max_tracks_per_playlist,
             'min_tracks_per_playlist': config.min_tracks_per_playlist,
             'excluded_genres': config.excluded_genres,
+        'excluded_artists': getattr(config, 'excluded_artists', []),
             'shuffle_tracks': config.shuffle_tracks,
             'playlist_types': config.playlist_types,
             'generation_interval': config.generation_interval,
             'log_level': config.log_level,
             'min_artist_diversity': getattr(config, 'min_artist_diversity', 5),
+            'min_albums_per_artist': getattr(config, 'min_albums_per_artist', 2),
             'spotify_client_id': getattr(config, 'spotify_client_id', ''),
             'spotify_client_secret': getattr(config, 'spotify_client_secret', ''),
             'spotify_cover_art_enabled': getattr(config, 'spotify_cover_art_enabled', False),
             'enabled_genres': [],
             'enabled_years': [],
             'enabled_artists': [],
-            'auto_generation': True
+            'auto_generation': True,
+            'personal_playlist_min_user_tracks': getattr(config, 'personal_playlist_min_user_tracks', 10),
+            'discovery_max_songs_per_album': getattr(config, 'discovery_max_songs_per_album', 1),
+            'discovery_max_songs_per_artist': getattr(config, 'discovery_max_songs_per_artist', 2),
+            'min_albums_per_artist': getattr(config, 'min_albums_per_artist', 2),
+            'min_albums_per_decade': getattr(config, 'min_albums_per_decade', 3),
+            'trigger_library_scan': getattr(config, 'trigger_library_scan', True),
+            # Scheduling settings
+            'auto_generate_on_startup': getattr(config, 'auto_generate_on_startup', False),
+            'schedule_mode': getattr(config, 'schedule_mode', 'manual'),
+            'schedule_time': getattr(config, 'schedule_time', '00:00')
         }
         
         # Load and merge web UI settings (these take precedence)
@@ -79,6 +110,7 @@ class ConfigManager:
         config.max_tracks_per_playlist = settings.get('max_tracks_per_playlist', config.max_tracks_per_playlist)
         config.min_tracks_per_playlist = settings.get('min_tracks_per_playlist', config.min_tracks_per_playlist)
         config.excluded_genres = settings.get('excluded_genres', config.excluded_genres)
+        config.excluded_artists = settings.get('excluded_artists', getattr(config, 'excluded_artists', []))
         config.shuffle_tracks = settings.get('shuffle_tracks', config.shuffle_tracks)
         config.playlist_types = settings.get('playlist_types', config.playlist_types)
         config.generation_interval = settings.get('generation_interval', config.generation_interval)
@@ -87,6 +119,15 @@ class ConfigManager:
         config.spotify_client_id = settings.get('spotify_client_id', getattr(config, 'spotify_client_id', ''))
         config.spotify_client_secret = settings.get('spotify_client_secret', getattr(config, 'spotify_client_secret', ''))
         config.spotify_cover_art_enabled = settings.get('spotify_cover_art_enabled', getattr(config, 'spotify_cover_art_enabled', False))
+        
+        # Apply playlist generation settings
+        config.min_albums_per_artist = settings.get('min_albums_per_artist', getattr(config, 'min_albums_per_artist', 2))
+        config.min_albums_per_decade = settings.get('min_albums_per_decade', getattr(config, 'min_albums_per_decade', 3))
+        
+        # Apply scheduling settings
+        config.auto_generate_on_startup = settings.get('auto_generate_on_startup', getattr(config, 'auto_generate_on_startup', False))
+        config.schedule_mode = settings.get('schedule_mode', getattr(config, 'schedule_mode', 'manual'))
+        config.schedule_time = settings.get('schedule_time', getattr(config, 'schedule_time', '00:00'))
 
 config_manager = ConfigManager()
 
@@ -189,11 +230,29 @@ def save_web_ui_settings(new_settings):
 def api_generate():
     """API endpoint to trigger playlist generation"""
     try:
-        generator = PlaylistGenerator(config, logger)
+        logger.info("🎵 ========== API PLAYLIST GENERATION TRIGGERED ===========")
+        logger.info(f"🔧 Current config: {config.playlist_types}")
+        logger.info(f"🔧 Jellyfin URL: {config.jellyfin_url}")
+        logger.info(f"🔧 API Key configured: {'Yes' if config.api_key else 'No'}")
+        
+        # Import here to ensure logging is set up
+        from vibecodeplugin import setup_logging
+        
+        # Setup comprehensive logging for the generator
+        generator_logger = setup_logging(config)
+        generator_logger.info("🎵 Creating PlaylistGenerator instance from API call")
+        
+        generator = PlaylistGenerator(config, generator_logger)
+        logger.info("🎤 Starting playlist generation from web UI...")
+        
         generator.generate_playlists()
-        return jsonify({'success': True, 'message': 'Playlist generation completed'})
+        
+        logger.info("✅ Playlist generation completed successfully from API")
+        return jsonify({'success': True, 'message': 'Playlist generation completed successfully'})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        logger.error(f"❌ API playlist generation failed: {e}")
+        logger.exception("Full error details:")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/generate_personalized', methods=['POST'])
 def api_generate_personalized():
@@ -461,6 +520,36 @@ def api_metadata():
             'artists': []
         })
 
+@app.route('/api/artists')
+def api_artists():
+    """Get all artists from Jellyfin for excluded artists functionality"""
+    try:
+        jellyfin_api = JellyfinAPI(config, logger)
+        
+        # Test connection first
+        if not jellyfin_api.test_connection():
+            return jsonify({
+                'success': False, 
+                'message': 'Cannot connect to Jellyfin server',
+                'artists': []
+            })
+        
+        metadata = get_jellyfin_metadata(jellyfin_api)
+        artists = metadata.get('artists', [])
+        
+        return jsonify({
+            'success': True,
+            'artists': sorted(artists),  # Sort alphabetically for better UX
+            'count': len(artists)
+        })
+    except Exception as e:
+        logger.error(f"Error fetching artists: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'artists': []
+        })
+
 @app.route('/api/users')
 def api_users():
     """Get all Jellyfin users"""
@@ -471,6 +560,227 @@ def api_users():
     except Exception as e:
         logger.error(f"Error getting users: {e}")
         return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/update-covers', methods=['POST'])
+def api_update_covers():
+    """Update cover art for existing playlists with optimized performance to prevent worker timeouts"""
+    try:
+        import time
+        start_time = time.time()
+        
+        logger.info("🎨 Starting optimized cover art update process...")
+        
+        # Get playlist generator and Spotify client ONCE at startup
+        config = Config()
+        jellyfin_logger = setup_logging(config)
+        generator = PlaylistGenerator(config, jellyfin_logger)
+        spotify = SpotifyClient(config, jellyfin_logger)
+        
+        # Pre-cache Spotify configuration to avoid repeated checks
+        spotify_enabled = spotify.is_enabled()
+        spotify_available = spotify.spotify is not None
+        
+        logger.info(f"🔍 Configuration check - Spotify enabled: {spotify_enabled}, client available: {spotify_available}")
+        logger.info(f"🔍 Config details - cover_art_enabled: {config.spotify_cover_art_enabled}, client_id: {bool(config.spotify_client_id)}, client_secret: {bool(config.spotify_client_secret)}")
+        
+        # Pre-load Jellyfin audio items cache to prevent repeated API calls
+        logger.info("📡 Pre-loading Jellyfin audio items cache...")
+        generator._get_cached_audio_items()  # This will cache all audio items for 30 minutes
+        
+        # Get all playlist directories
+        playlist_folder = Path(config.playlist_folder)
+        if not playlist_folder.exists():
+            return jsonify({"error": "Playlist folder not found"}), 404
+        
+        playlist_dirs = [d for d in playlist_folder.iterdir() if d.is_dir()]
+        total_count = len(playlist_dirs)
+        
+        # Optimized processing with smaller batches and longer timeout
+        batch_size = 5  # Smaller batches for better responsiveness
+        processed = 0
+        timeout_limit = 180  # 3 minutes total timeout (reduced from 4)
+        updated_count = 0
+        skipped_count = 0
+        error_count = 0
+        
+        logger.info(f"Processing {total_count} playlists in batches of {batch_size} with {timeout_limit}s timeout...")
+        
+        for playlist_dir in playlist_dirs:
+            playlist_name = playlist_dir.name
+            processed += 1
+            
+            # Check for timeout to prevent worker crashes
+            elapsed_time = time.time() - start_time
+            if elapsed_time > timeout_limit:
+                logger.warning(f"⏰ Timeout reached ({elapsed_time:.1f}s), stopping cover art updates")
+                break
+            
+            # Add small delay between playlists to prevent overwhelming the system
+            if processed > 1 and processed % batch_size == 0:
+                time.sleep(0.1)  # 100ms pause between batches
+            
+            # Log progress every 5 playlists with timing info
+            if processed % 5 == 0:
+                avg_time_per_playlist = elapsed_time / processed if processed > 0 else 0
+                estimated_remaining = (total_count - processed) * avg_time_per_playlist
+                logger.info(f"📊 Progress: {processed}/{total_count} playlists processed ({elapsed_time:.1f}s elapsed, ~{estimated_remaining:.1f}s remaining)")
+            
+            try:
+                # Handle all playlist types: artist, genre, decade, and personal playlists
+                # Check for artist playlist pattern ("This is [Artist]" with optional "!" and extra characters)
+                if playlist_name.startswith("This is "):
+                    # Artist playlist - extract artist name and clean up extra characters
+                    artist_name = playlist_name.replace("This is ", "")
+                    # Remove exclamation marks and any trailing numbers/characters
+                    import re
+                    artist_name = re.sub(r'[!]+\d*$', '', artist_name).strip()
+                    
+                    # Only process if we have a valid artist name after cleaning
+                    if artist_name:
+                        cover_updated = False
+                        
+                        # Use pre-cached Spotify configuration (no more repeated checks!)
+                        # Try Spotify cover art first if enabled
+                        if spotify_enabled and spotify_available:
+                            try:
+                                logger.debug(f"🎵 Attempting Spotify cover art for {artist_name}")
+                                spotify_success = spotify.get_artist_cover_art(artist_name, playlist_dir)
+                                if spotify_success:
+                                    logger.info(f"✅ Updated Spotify cover art for {artist_name}")
+                                    cover_updated = True
+                            except Exception as e:
+                                logger.debug(f"Spotify cover art failed for {artist_name}: {e}")
+                        elif not spotify_enabled:
+                            logger.debug(f"⚠️ Spotify cover art skipped for {artist_name} - not enabled")
+                        
+                        # Try custom cover art generation if Spotify failed
+                        if not cover_updated:
+                            try:
+                                # Use the existing generator instance (DO NOT create new one - it destroys the cache!)
+                                # Find artist folder image first
+                                artist_image_path = generator._find_artist_cover_image(artist_name)
+                                if artist_image_path:
+                                    logger.info(f"🖼️ Found artist image: {artist_image_path}")
+                                    # Generate custom cover art with proper parameters
+                                    cover_destination = playlist_dir / "folder.png"
+                                    custom_success = generator._generate_custom_cover_art(artist_image_path, artist_name, cover_destination)
+                                    if custom_success:
+                                        logger.info(f"✅ Generated custom cover art for {artist_name}")
+                                        cover_updated = True
+                                else:
+                                    logger.debug(f"No artist folder image found for {artist_name}")
+                            except Exception as e:
+                                logger.debug(f"Custom cover generation failed for {artist_name}: {e}")
+                        
+                        # Try folder fallback if both failed
+                        if not cover_updated:
+                            try:
+                                generator = PlaylistGenerator(config, jellyfin_logger)
+                                if hasattr(generator, '_try_artist_folder_fallback'):
+                                    fallback_success = generator._try_artist_folder_fallback(artist_name, playlist_dir)
+                                    if fallback_success:
+                                        logger.info(f"✅ Updated folder cover art for {artist_name}")
+                                        cover_updated = True
+                            except Exception as e:
+                                logger.debug(f"Folder fallback failed for {artist_name}: {e}")
+                        
+                        if cover_updated:
+                            updated_count += 1
+                        else:
+                            logger.info(f"⏭️ No cover art update available for {artist_name}")
+                    else:
+                        # Invalid artist name after cleaning
+                        logger.debug(f"⏭️ Skipping playlist with invalid artist name: {playlist_name}")
+                        skipped_count += 1
+                        
+                elif playlist_name.endswith(" Radio"):
+                    # Handle genre playlists (ending with " Radio")
+                    logger.info(f"📻 Processing genre playlist: {playlist_name}")
+                    
+                    # Extract genre name by removing " Radio" suffix
+                    genre_name = playlist_name.replace(" Radio", "")
+                    
+                    cover_updated = False
+                    
+                    # Use genre-specific cover art system
+                    try:
+                        cover_updated = generator._apply_genre_cover_art(playlist_name, genre_name, playlist_dir)
+                        if cover_updated:
+                            logger.info(f"✅ Applied genre cover art for {playlist_name}")
+                        else:
+                            logger.debug(f"No genre cover art found for {playlist_name}")
+                    except Exception as e:
+                        logger.debug(f"Genre cover art failed for {playlist_name}: {e}")
+                    
+                    if cover_updated:
+                        updated_count += 1
+                    else:
+                        logger.info(f"⏭️ No cover art update available for {playlist_name}")
+                        skipped_count += 1
+                        
+                elif playlist_name.startswith("Back to the "):
+                    # Handle decade playlists (starting with "Back to the ")
+                    logger.info(f"📅 Processing decade playlist: {playlist_name}")
+                    
+                    cover_updated = False
+                    
+                    # Use decade-specific cover art system
+                    try:
+                        cover_updated = generator._apply_decade_cover_art(playlist_name, playlist_dir)
+                        if cover_updated:
+                            logger.info(f"✅ Applied decade cover art for {playlist_name}")
+                        else:
+                            logger.debug(f"No decade cover art found for {playlist_name}")
+                    except Exception as e:
+                        logger.debug(f"Decade cover art failed for {playlist_name}: {e}")
+                    
+                    if cover_updated:
+                        updated_count += 1
+                    else:
+                        logger.info(f"⏭️ No cover art update available for {playlist_name}")
+                        skipped_count += 1
+                        
+                else:
+                    # Handle personal playlists (everything else)
+                    logger.info(f"🎵 Processing personal playlist: {playlist_name}")
+                    
+                    cover_updated = False
+                    
+                    # Use original cover art system - copy from /data/cover based on playlist name
+                    try:
+                        cover_updated = generator.copy_custom_cover_art(playlist_name, playlist_dir)
+                        if cover_updated:
+                            logger.info(f"✅ Applied cover art for personal playlist: {playlist_name}")
+                        else:
+                            logger.debug(f"No cover art found in /data/cover for personal playlist: {playlist_name}")
+                    except Exception as e:
+                        logger.debug(f"Cover art copy failed for personal playlist {playlist_name}: {e}")
+                    
+                    if cover_updated:
+                        updated_count += 1
+                    else:
+                        logger.info(f"⏭️ No cover art update available for {playlist_name}")
+                        skipped_count += 1
+                        
+            except Exception as e:
+                error_count += 1
+                logger.error(f"❌ Error updating cover for {playlist_name}: {e}")
+        
+        # Return results
+        message = f"Cover art update complete: {updated_count} updated, {skipped_count} skipped, {error_count} errors"
+        logger.info(f"🎨 {message}")
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'updated': updated_count,
+            'skipped': skipped_count,
+            'errors': error_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in cover art update: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/user_settings', methods=['GET'])
 def api_get_user_settings():

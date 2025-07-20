@@ -89,7 +89,7 @@
                                name="playlist_types" value="Year" 
                                {% if 'Year' in settings.playlist_types %}checked{% endif %}>
                         <label class="form-check-label" for="type_year">
-                            <i class="fas fa-calendar me-1"></i>Year-based playlists
+                            <i class="fas fa-calendar-alt me-1"></i>Decade-based playlists (1980s, 1990s, 2000s, etc.)
                         </label>
                     </div>
                     <div class="form-check mb-2">
@@ -111,18 +111,46 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
+                        <label for="auto_generate_on_startup" class="form-label">Startup Behavior</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="auto_generate_on_startup" 
+                                   name="auto_generate_on_startup" {% if settings.auto_generate_on_startup %}checked{% endif %}>
+                            <label class="form-check-label" for="auto_generate_on_startup">
+                                <i class="fas fa-rocket me-1"></i>Generate playlists automatically on startup
+                            </label>
+                        </div>
+                        <div class="form-text">When enabled, playlists will be generated immediately when the application starts</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="schedule_mode" class="form-label">Schedule Mode</label>
+                        <select class="form-select" id="schedule_mode" name="schedule_mode" required>
+                            <option value="manual" {% if settings.schedule_mode == 'manual' %}selected{% endif %}>
+                                <i class="fas fa-hand-paper"></i> Manual Only - Generate via web UI only
+                            </option>
+                            <option value="daily" {% if settings.schedule_mode == 'daily' %}selected{% endif %}>
+                                <i class="fas fa-calendar-day"></i> Daily - Generate once per day at specified time
+                            </option>
+                            <option value="interval" {% if settings.schedule_mode == 'interval' %}selected{% endif %}>
+                                <i class="fas fa-clock"></i> Interval - Generate every X hours
+                            </option>
+                        </select>
+                        <div class="form-text">Choose how and when playlists should be automatically generated</div>
+                    </div>
+                    
+                    <div class="mb-3" id="schedule_time_section" style="display: none;">
+                        <label for="schedule_time" class="form-label">Daily Generation Time</label>
+                        <input type="time" class="form-control" id="schedule_time" 
+                               name="schedule_time" value="{{ settings.schedule_time or '00:00' }}">
+                        <div class="form-text">Time of day to generate playlists (24-hour format)</div>
+                    </div>
+                    
+                    <div class="mb-3" id="generation_interval_section" style="display: none;">
                         <label for="generation_interval" class="form-label">Generation Interval (hours)</label>
                         <input type="number" class="form-control" id="generation_interval" 
                                name="generation_interval" value="{{ settings.generation_interval }}" 
                                min="1" max="168" required>
                         <div class="form-text">How often to automatically generate playlists (1-168 hours)</div>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="auto_generation" 
-                               name="auto_generation" {% if settings.auto_generation %}checked{% endif %}>
-                        <label class="form-check-label" for="auto_generation">
-                            Enable automatic playlist generation
-                        </label>
                     </div>
                 </div>
             </div>
@@ -228,6 +256,60 @@
     </div>
 
     <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-slash me-2"></i>Excluded Artists
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Select artists to exclude from playlist generation. Click "Load Available Artists" to see all artists from your music library.</p>
+                    
+                    <div class="mb-3">
+                        <label for="excluded_artists_input" class="form-label">Add Artist</label>
+                        <input type="text" class="form-control" id="excluded_artists_input" 
+                               placeholder="Type artist name and press Enter">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Currently Excluded:</label>
+                        <div id="excluded_artists_container">
+                            {% for artist in settings.excluded_artists %}
+                                <span class="badge bg-danger me-2 mb-2">
+                                    {{ artist }}
+                                    <button type="button" class="btn-close btn-close-white ms-1" 
+                                            onclick="removeExcludedArtist('{{ artist }}')"></button>
+                                </span>
+                            {% else %}
+                                <span class="text-muted">No artists excluded</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0">Available Artists:</label>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="loadArtistsBtn" onclick="loadAvailableArtists()">
+                                <i class="fas fa-download me-1"></i>Load Available Artists
+                            </button>
+                        </div>
+                        <div class="row" id="available_artists">
+                            <div class="col-12">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Click "Load Available Artists" to fetch artists from your Jellyfin library.
+                                    <br><small>This may take a moment for large libraries.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
         <div class="col-md-6">
             <div class="card mb-4">
                 <div class="card-header">
@@ -269,6 +351,13 @@
                             <option value="WARNING" {% if settings.log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
                             <option value="ERROR" {% if settings.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="min_albums_per_decade" class="form-label">Minimum Albums per Decade</label>
+                        <input type="number" class="form-control" id="min_albums_per_decade" 
+                               name="min_albums_per_decade" value="{{ settings.min_albums_per_decade or 3 }}" 
+                               min="1" max="50" required>
+                        <div class="form-text">Minimum number of albums required to create a decade playlist (e.g., 1980s, 1990s)</div>
                     </div>
                     <div class="mb-3">
                         <label for="playlist_folder" class="form-label">Playlist Folder</label>
@@ -313,7 +402,36 @@ try {
 }
 let availableGenresLoaded = false;
 
+// Initialize excluded artists from server-side data
+let excludedArtists = [];
+try {
+    excludedArtists = {{ settings.excluded_artists | tojson | safe }};
+} catch (e) {
+    console.warn('Failed to parse excluded artists:', e);
+    excludedArtists = [];
+}
+let availableArtistsLoaded = false;
+
 $(document).ready(function() {
+    // Handle scheduling mode changes
+    function updateSchedulingOptions() {
+        const scheduleMode = $('#schedule_mode').val();
+        $('#schedule_time_section').hide();
+        $('#generation_interval_section').hide();
+        
+        if (scheduleMode === 'daily') {
+            $('#schedule_time_section').show();
+        } else if (scheduleMode === 'interval') {
+            $('#generation_interval_section').show();
+        }
+    }
+    
+    // Initialize scheduling options visibility
+    updateSchedulingOptions();
+    
+    // Handle schedule mode changes
+    $('#schedule_mode').on('change', updateSchedulingOptions);
+    
     // Handle excluded genres input
     $('#excluded_genres_input').on('keypress', function(e) {
         if (e.which === 13 || e.which === 188) { // Enter or comma
@@ -321,6 +439,18 @@ $(document).ready(function() {
             const genre = $(this).val().trim().replace(',', '');
             if (genre) {
                 addExcludedGenre(genre);
+                $(this).val('');
+            }
+        }
+    });
+
+    // Handle excluded artists input
+    $('#excluded_artists_input').on('keypress', function(e) {
+        if (e.which === 13 || e.which === 188) { // Enter or comma
+            e.preventDefault();
+            const artist = $(this).val().trim().replace(',', '');
+            if (artist) {
+                addExcludedArtist(artist);
                 $(this).val('');
             }
         }
@@ -361,6 +491,34 @@ function updateExcludedGenresDisplay() {
     });
 }
 
+function addExcludedArtist(artist) {
+    if (!excludedArtists.includes(artist)) {
+        excludedArtists.push(artist);
+        updateExcludedArtistsDisplay();
+    }
+}
+
+function removeExcludedArtist(artist) {
+    excludedArtists = excludedArtists.filter(a => a !== artist);
+    updateExcludedArtistsDisplay();
+}
+
+function updateExcludedArtistsDisplay() {
+    const container = $('#excluded_artists_container');
+    container.empty();
+    
+    excludedArtists.forEach(artist => {
+        const badge = $(`
+            <span class="badge bg-danger me-2 mb-2">
+                ${artist}
+                <button type="button" class="btn-close btn-close-white ms-1" 
+                        onclick="removeExcludedArtist('${artist}')"></button>
+            </span>
+        `);
+        container.append(badge);
+    });
+}
+
 function saveSettings() {
     const formData = new FormData($('#settingsForm')[0]);
     
@@ -380,6 +538,7 @@ function saveSettings() {
         generation_interval: parseInt(formData.get('generation_interval')),
         auto_generation: formData.get('auto_generation') === 'on',
         excluded_genres: excludedGenres,
+        excluded_artists: excludedArtists,
         log_level: formData.get('log_level'),
         playlist_folder: formData.get('playlist_folder'),
         spotify_client_id: formData.get('spotify_client_id'),
@@ -483,6 +642,82 @@ function loadAvailableGenres() {
                 </div>
             `);
             showAlert('Error loading genres from Jellyfin.', 'danger');
+        }
+    });
+}
+
+function loadAvailableArtists() {
+    if (availableArtistsLoaded) {
+        return; // Already loaded
+    }
+    
+    const button = $('#loadArtistsBtn');
+    const originalText = button.html();
+    const container = $('#available_artists');
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Loading...');
+    
+    container.html(`
+        <div class="col-12">
+            <div class="text-center text-muted py-3">
+                <div class="spinner-border spinner-border-sm me-2"></div>
+                Loading artists from Jellyfin... This may take a moment for large libraries.
+            </div>
+        </div>
+    `);
+    
+    $.ajax({
+        url: '/api/artists',
+        method: 'GET',
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            if (data.success && data.artists && data.artists.length > 0) {
+                // Clear container and add artist buttons
+                container.empty();
+                
+                data.artists.forEach(artist => {
+                    const artistButton = $(`
+                        <div class="col-md-4 col-lg-3 mb-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" 
+                                    onclick="addExcludedArtist('${escapeHtml(artist)}')">
+                                ${escapeHtml(artist)}
+                            </button>
+                        </div>
+                    `);
+                    container.append(artistButton);
+                });
+                
+                availableArtistsLoaded = true;
+                button.html('<i class="fas fa-check me-1"></i>Artists Loaded');
+                showAlert(`Loaded ${data.artists.length} artists from your music library!`, 'success');
+            } else {
+                container.html(`
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'No artists found in your music library. Check your Jellyfin connection.'}
+                        </div>
+                    </div>
+                `);
+            }
+        },
+        error: function() {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            container.html(`
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Failed to load artists. Please check your Jellyfin connection and try again.
+                    </div>
+                </div>
+            `);
+            showAlert('Error loading artists from Jellyfin.', 'danger');
         }
     });
 }

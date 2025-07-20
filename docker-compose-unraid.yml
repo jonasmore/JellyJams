@@ -27,9 +27,11 @@ services:
       - /mnt/user/appdata/jellyjams/playlists:/app/playlists
       - /mnt/user/appdata/jellyjams/logs:/app/logs
       - /mnt/user/appdata/jellyjams/config:/app/config
-      - /mnt/user/appdata/jellyjams/cover:/app/cover
+      - ./data/cover:/app/cover
       # Mount to Jellyfin's playlist directory (update path as needed)
       - /mnt/user/appdata/jellyjams/playlistsjelly:/jellyfin/playlists
+      # Music directory for cover art generation (adjust path for your system)
+      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
     ports:
       - "5000:5000"
     restart: unless-stopped
