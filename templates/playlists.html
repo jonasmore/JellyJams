@@ -21,18 +21,23 @@
         </div>
     </div>
     <div class="col-md-6 text-end">
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-primary" onclick="filterPlaylists('all')">
-                <i class="fas fa-list me-1"></i>All ({{ playlists|length }})
-            </button>
-            <button type="button" class="btn btn-outline-success" onclick="filterPlaylists('genre')">
-                <i class="fas fa-music me-1"></i>Genres
-            </button>
-            <button type="button" class="btn btn-outline-info" onclick="filterPlaylists('year')">
-                <i class="fas fa-calendar me-1"></i>Years
-            </button>
-            <button type="button" class="btn btn-outline-warning" onclick="filterPlaylists('artist')">
-                <i class="fas fa-user me-1"></i>Artists
+        <div class="d-flex gap-2 justify-content-end">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary" onclick="filterPlaylists('all')">
+                    <i class="fas fa-list me-1"></i>All ({{ playlists|length }})
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="filterPlaylists('genre')">
+                    <i class="fas fa-music me-1"></i>Genres
+                </button>
+                <button type="button" class="btn btn-outline-info" onclick="filterPlaylists('year')">
+                    <i class="fas fa-calendar me-1"></i>Years
+                </button>
+                <button type="button" class="btn btn-outline-warning" onclick="filterPlaylists('artist')">
+                    <i class="fas fa-user me-1"></i>Artists
+                </button>
+            </div>
+            <button type="button" class="btn btn-danger" onclick="deleteAllPlaylists()">
+                <i class="fas fa-trash-alt me-1"></i>Delete All
             </button>
         </div>
     </div>
@@ -64,16 +69,37 @@
                         </button>
                         <ul class="dropdown-menu">
                             <li>
-                                <a class="dropdown-item" href="#" onclick="viewPlaylist('{{ playlist.name }}')">
+                                <a class="dropdown-item view-playlist-btn" href="#" data-playlist-name="{{ playlist.name }}">
                                     <i class="fas fa-eye me-1"></i>View Details
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item text-danger" href="#" onclick="deletePlaylist('{{ playlist.name }}')">
+                                <a class="dropdown-item text-danger delete-playlist-btn" href="#" data-playlist-name="{{ playlist.name }}">
                                     <i class="fas fa-trash me-1"></i>Delete
                                 </a>
                             </li>
                         </ul>
+                    </div>
+                </div>
+                <!-- Cover Art Section -->
+                <div class="playlist-cover-container" style="position: relative; height: 200px; overflow: hidden;">
+                    <img src="/api/cover/{{ playlist.name | urlencode }}" 
+                         alt="{{ playlist.name }} cover" 
+                         class="playlist-cover-image" 
+                         style="width: 100%; height: 100%; object-fit: cover; background-color: #f8f9fa;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                         loading="lazy">
+                    <div class="playlist-cover-placeholder" 
+                         style="display: none; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); align-items: center; justify-content: center; color: white; font-size: 3rem;">
+                        {% if 'This is' in playlist.name %}
+                            <i class="fas fa-user"></i>
+                        {% elif 'Radio' in playlist.name %}
+                            <i class="fas fa-music"></i>
+                        {% elif 'Back to' in playlist.name %}
+                            <i class="fas fa-calendar"></i>
+                        {% else %}
+                            <i class="fas fa-list"></i>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="card-body">
@@ -162,6 +188,58 @@
         </div>
     </div>
 </div>
+
+<!-- Delete All Confirmation Modal -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Delete All Playlists
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> This will permanently delete ALL playlists!
+                </div>
+                <p>Are you sure you want to delete <strong>all {{ playlists|length }} playlist(s)</strong>?</p>
+                <p class="text-muted">This action cannot be undone and will remove all generated playlists from your system.</p>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="confirmDeleteAll">
+                    <label class="form-check-label" for="confirmDeleteAll">
+                        I understand this will delete all playlists permanently
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteAllBtn" disabled>
+                    <i class="fas fa-trash-alt me-1"></i>Delete All Playlists
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Playlist View Modal -->
+<div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playlistModalTitle">Playlist Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="playlistModalBody">
+                <!-- Playlist contents will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -176,6 +254,20 @@ $(document).ready(function() {
     
     // Set initial filter button state
     $('button[onclick="filterPlaylists(\'all\')"]').addClass('active');
+    
+    // Event delegation for playlist view buttons
+    $(document).on('click', '.view-playlist-btn', function(e) {
+        e.preventDefault();
+        const playlistName = $(this).data('playlist-name');
+        viewPlaylist(playlistName);
+    });
+    
+    // Event delegation for playlist delete buttons
+    $(document).on('click', '.delete-playlist-btn', function(e) {
+        e.preventDefault();
+        const playlistName = $(this).data('playlist-name');
+        deletePlaylist(playlistName);
+    });
 });
 
 function filterPlaylists(type) {
@@ -202,6 +294,24 @@ function filterPlaylists(type) {
     });
 }
 
+// Helper function to format duration from milliseconds
+function formatDuration(durationMs) {
+    if (!durationMs || durationMs === '0') return '--';
+    
+    const totalSeconds = Math.floor(parseInt(durationMs) / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function viewPlaylist(playlistName) {
     $('#playlistModalTitle').text(playlistName);
     $('#playlistModalBody').html(`
@@ -215,18 +325,78 @@ function viewPlaylist(playlistName) {
     const modal = new bootstrap.Modal(document.getElementById('playlistModal'));
     modal.show();
     
-    // Load playlist details (this would need to be implemented in the backend)
-    // For now, show basic info
-    setTimeout(() => {
-        $('#playlistModalBody').html(`
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                Playlist details view is not yet implemented. This would show the full track listing and metadata.
-            </div>
-            <p><strong>Playlist:</strong> ${playlistName}</p>
-            <p><strong>Location:</strong> /app/playlists/${playlistName}/playlist.xml</p>
-        `);
-    }, 1000);
+    // Fetch actual playlist contents
+    $.ajax({
+        url: `/api/playlist_contents/${encodeURIComponent(playlistName)}`,
+        method: 'GET',
+        success: function(data) {
+            if (data.success) {
+                let tracksHtml = '';
+                if (data.tracks && data.tracks.length > 0) {
+                    tracksHtml = `
+                        <div class="mb-3">
+                            <h6><i class="fas fa-music me-2"></i>Tracks (${data.track_count})</h6>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Title</th>
+                                        <th>Artist</th>
+                                        <th>Album</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    data.tracks.forEach((track, index) => {
+                        const duration = formatDuration(track.duration);
+                        tracksHtml += `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td><strong>${escapeHtml(track.title)}</strong></td>
+                                <td>${escapeHtml(track.artist)}</td>
+                                <td>${escapeHtml(track.album)}</td>
+                                <td>${duration}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    tracksHtml += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    tracksHtml = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            No tracks found in this playlist.
+                        </div>
+                    `;
+                }
+                
+                $('#playlistModalBody').html(tracksHtml);
+            } else {
+                $('#playlistModalBody').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading playlist: ${data.message}
+                    </div>
+                `);
+            }
+        },
+        error: function() {
+            $('#playlistModalBody').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Failed to load playlist contents. Please try again.
+                </div>
+            `);
+        }
+    });
 }
 
 function deletePlaylist(playlistName) {
@@ -281,6 +451,68 @@ function deletePlaylist(playlistName) {
                 hideSpinner(button, originalText);
                 modal.hide();
                 showAlert('Error deleting playlist.', 'danger');
+            }
+        });
+    });
+}
+
+function deleteAllPlaylists() {
+    const modal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
+    modal.show();
+    
+    // Reset checkbox state
+    $('#confirmDeleteAll').prop('checked', false);
+    $('#confirmDeleteAllBtn').prop('disabled', true);
+    
+    // Handle checkbox change
+    $('#confirmDeleteAll').off('change').on('change', function() {
+        $('#confirmDeleteAllBtn').prop('disabled', !this.checked);
+    });
+    
+    $('#confirmDeleteAllBtn').off('click').on('click', function() {
+        const button = $(this);
+        const originalText = button.html();
+        showSpinner(button);
+        
+        $.ajax({
+            url: '/api/delete_all_playlists',
+            method: 'POST',
+            contentType: 'application/json',
+            success: function(data) {
+                hideSpinner(button, originalText);
+                modal.hide();
+                
+                if (data.success) {
+                    showAlert(`Successfully deleted ${data.deleted_count} playlist(s)!`, 'success');
+                    // Remove all playlist cards and show empty state
+                    $('#playlistsContainer').html(`
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body text-center py-5">
+                                    <i class="fas fa-music fa-3x text-muted mb-3"></i>
+                                    <h4 class="text-muted">No Playlists Found</h4>
+                                    <p class="text-muted">Generate some playlists to get started!</p>
+                                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                                        <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+                    
+                    // Hide the delete all button since no playlists remain
+                    $('button[onclick="deleteAllPlaylists()"]').hide();
+                    
+                    // Update the filter button count
+                    $('button[onclick="filterPlaylists(\'all\')"').html('<i class="fas fa-list me-1"></i>All (0)');
+                } else {
+                    showAlert('Failed to delete playlists: ' + data.message, 'danger');
+                }
+            },
+            error: function() {
+                hideSpinner(button, originalText);
+                modal.hide();
+                showAlert('Error deleting playlists.', 'danger');
             }
         });
     });

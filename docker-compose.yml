@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   jellyjams:
     build: .
@@ -24,6 +22,7 @@ services:
       - jellyjams_playlists:/app/playlists
       - jellyjams_logs:/app/logs
       - jellyjams_config:/app/config
+      - jellyjams_cover:/app/cover
     ports:
       - "5000:5000"
     restart: unless-stopped
@@ -32,3 +31,4 @@ volumes:
   jellyjams_playlists:
   jellyjams_logs:
   jellyjams_config:
+  jellyjams_cover:

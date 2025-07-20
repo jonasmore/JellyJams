@@ -50,6 +50,13 @@
                                min="1" max="100" required>
                         <div class="form-text">Playlists with fewer tracks will not be created</div>
                     </div>
+                    <div class="mb-3">
+                        <label for="min_artist_diversity" class="form-label">Minimum Artist Diversity</label>
+                        <input type="number" class="form-control" id="min_artist_diversity" 
+                               name="min_artist_diversity" value="{{ settings.min_artist_diversity or 5 }}" 
+                               min="1" max="50" required>
+                        <div class="form-text">Genre and year playlists need at least this many different artists</div>
+                    </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="shuffle_tracks" 
                                name="shuffle_tracks" {% if settings.shuffle_tracks %}checked{% endif %}>
@@ -127,26 +134,93 @@
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
+                        <i class="fab fa-spotify me-2 text-success"></i>Spotify Integration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Optional:</strong> Configure Spotify API to download cover art for artist playlists.
+                        Get credentials from <a href="https://developer.spotify.com/dashboard" target="_blank">Spotify Developer Dashboard</a>.
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="spotify_cover_art_enabled" 
+                               name="spotify_cover_art_enabled" {% if settings.spotify_cover_art_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="spotify_cover_art_enabled">
+                            <i class="fas fa-image me-1"></i>Enable Spotify cover art downloads
+                        </label>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="spotify_client_id" class="form-label">Spotify Client ID</label>
+                                <input type="text" class="form-control" id="spotify_client_id" 
+                                       name="spotify_client_id" value="{{ settings.spotify_client_id or '' }}" 
+                                       placeholder="Your Spotify Client ID">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="spotify_client_secret" class="form-label">Spotify Client Secret</label>
+                                <input type="password" class="form-control" id="spotify_client_secret" 
+                                       name="spotify_client_secret" value="{{ settings.spotify_client_secret or '' }}" 
+                                       placeholder="Your Spotify Client Secret">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
                         <i class="fas fa-ban me-2"></i>Excluded Genres
                     </h5>
                 </div>
                 <div class="card-body">
+                    <p class="text-muted mb-3">Select genres to exclude from playlist generation. Click "Load Available Genres" to see all genres from your music library.</p>
+                    
                     <div class="mb-3">
-                        <label for="excluded_genres_input" class="form-label">Genres to Exclude</label>
+                        <label for="excluded_genres_input" class="form-label">Add Genre</label>
                         <input type="text" class="form-control" id="excluded_genres_input" 
-                               placeholder="Enter genres separated by commas">
-                        <div class="form-text">Type genre names and press Enter or comma to add them</div>
+                               placeholder="Type genre name and press Enter">
                     </div>
-                    <div id="excluded_genres_container">
-                        {% for genre in settings.excluded_genres %}
-                            {% if genre %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Currently Excluded:</label>
+                        <div id="excluded_genres_container">
+                            {% for genre in settings.excluded_genres %}
                                 <span class="badge bg-danger me-2 mb-2">
                                     {{ genre }}
                                     <button type="button" class="btn-close btn-close-white ms-1" 
                                             onclick="removeExcludedGenre('{{ genre }}')"></button>
                                 </span>
-                            {% endif %}
-                        {% endfor %}
+                            {% else %}
+                                <span class="text-muted">No genres excluded</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0">Available Genres:</label>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="loadGenresBtn" onclick="loadAvailableGenres()">
+                                <i class="fas fa-download me-1"></i>Load Available Genres
+                            </button>
+                        </div>
+                        <div class="row" id="available_genres">
+                            <div class="col-12">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Click "Load Available Genres" to fetch genres from your Jellyfin library.
+                                    <br><small>This may take a moment for large libraries.</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -229,7 +303,15 @@
 
 {% block scripts %}
 <script>
-let excludedGenres = {{ settings.excluded_genres | tojson | safe }};
+// Initialize excluded genres from server-side data
+let excludedGenres = [];
+try {
+    excludedGenres = {{ settings.excluded_genres | tojson | safe }};
+} catch (e) {
+    console.warn('Failed to parse excluded genres:', e);
+    excludedGenres = [];
+}
+let availableGenresLoaded = false;
 
 $(document).ready(function() {
     // Handle excluded genres input
@@ -292,13 +374,17 @@ function saveSettings() {
         jellyfin_url: formData.get('jellyfin_url'),
         max_tracks_per_playlist: parseInt(formData.get('max_tracks_per_playlist')),
         min_tracks_per_playlist: parseInt(formData.get('min_tracks_per_playlist')),
+        min_artist_diversity: parseInt(formData.get('min_artist_diversity')),
         shuffle_tracks: formData.get('shuffle_tracks') === 'on',
         playlist_types: playlistTypes,
         generation_interval: parseInt(formData.get('generation_interval')),
         auto_generation: formData.get('auto_generation') === 'on',
         excluded_genres: excludedGenres,
         log_level: formData.get('log_level'),
-        playlist_folder: formData.get('playlist_folder')
+        playlist_folder: formData.get('playlist_folder'),
+        spotify_client_id: formData.get('spotify_client_id'),
+        spotify_client_secret: formData.get('spotify_client_secret'),
+        spotify_cover_art_enabled: formData.get('spotify_cover_art_enabled') === 'on'
     };
     
     const button = $('button[type="submit"]');
@@ -325,33 +411,175 @@ function saveSettings() {
     });
 }
 
-function loadMetadata() {
-    const button = $('button:contains("Refresh Metadata")');
-    const originalText = button.html();
-    showSpinner(button);
+function loadAvailableGenres() {
+    if (availableGenresLoaded) {
+        return; // Already loaded
+    }
     
-    $.get('/api/metadata', function(data) {
-        hideSpinner(button, originalText);
-        showAlert('Metadata refreshed successfully!', 'success');
-        
-        // Update available genres
-        const genresContainer = $('.card-body .row').first();
-        genresContainer.empty();
-        
-        data.genres.forEach(genre => {
-            const button = $(`
-                <div class="col-md-6 mb-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm w-100" 
-                            onclick="addExcludedGenre('${genre}')">
-                        ${genre}
-                    </button>
+    const button = $('#loadGenresBtn');
+    const originalText = button.html();
+    const container = $('#available_genres');
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Loading...');
+    
+    container.html(`
+        <div class="col-12">
+            <div class="text-center text-muted py-3">
+                <div class="spinner-border spinner-border-sm me-2"></div>
+                Loading genres from Jellyfin... This may take a moment for large libraries.
+            </div>
+        </div>
+    `);
+    
+    $.ajax({
+        url: '/api/metadata',
+        method: 'GET',
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            if (data.success && data.genres && data.genres.length > 0) {
+                // Clear container and add genre buttons
+                container.empty();
+                
+                data.genres.forEach(genre => {
+                    const genreButton = $(`
+                        <div class="col-md-4 col-lg-3 mb-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" 
+                                    onclick="addExcludedGenre('${escapeHtml(genre)}')">
+                                ${escapeHtml(genre)}
+                            </button>
+                        </div>
+                    `);
+                    container.append(genreButton);
+                });
+                
+                availableGenresLoaded = true;
+                button.html('<i class="fas fa-check me-1"></i>Genres Loaded');
+                showAlert(`Loaded ${data.genres.length} genres from your music library!`, 'success');
+            } else {
+                container.html(`
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'No genres found in your music library. Check your Jellyfin connection.'}
+                        </div>
+                    </div>
+                `);
+            }
+        },
+        error: function() {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            container.html(`
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Failed to load genres. Please check your Jellyfin connection and try again.
+                    </div>
                 </div>
             `);
-            genresContainer.append(button);
-        });
-    }).fail(function() {
-        hideSpinner(button, originalText);
-        showAlert('Error refreshing metadata.', 'danger');
+            showAlert('Error loading genres from Jellyfin.', 'danger');
+        }
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Spotify Integration Functions
+function testSpotifyConnection() {
+    const button = $('#testSpotifyBtn');
+    const resultDiv = $('#spotifyTestResult');
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-2"></i>Testing...');
+    resultDiv.hide();
+    
+    $.ajax({
+        url: '/api/spotify/test',
+        method: 'POST',
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html('<i class="fas fa-plug me-2"></i>Test Spotify Connection');
+            
+            let alertClass = data.success ? 'alert-success' : 'alert-danger';
+            let icon = data.success ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+            
+            resultDiv.html(`
+                <div class="alert ${alertClass} mb-0">
+                    <i class="${icon} me-2"></i>
+                    <strong>${data.success ? 'Success!' : 'Failed!'}</strong> ${data.message}
+                    ${data.response_time ? `<br><small>Response time: ${data.response_time}s</small>` : ''}
+                </div>
+            `).show();
+        },
+        error: function() {
+            button.prop('disabled', false);
+            button.html('<i class="fas fa-plug me-2"></i>Test Spotify Connection');
+            
+            resultDiv.html(`
+                <div class="alert alert-danger mb-0">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Error!</strong> Failed to test Spotify connection.
+                </div>
+            `).show();
+        }
+    });
+}
+
+function loadSpotifyStats() {
+    const statsDiv = $('#spotifyStats');
+    
+    $.ajax({
+        url: '/api/spotify/stats',
+        method: 'GET',
+        success: function(data) {
+            if (data.enabled && data.stats) {
+                const stats = data.stats;
+                
+                // Update statistics display
+                $('#totalAttempts').text(stats.total_attempts);
+                $('#successfulDownloads').text(stats.successful_downloads);
+                $('#failedDownloads').text(stats.failed_downloads);
+                $('#successRate').text(stats.success_rate + '%');
+                $('#avgResponseTime').text(Math.round(stats.avg_response_time * 1000) + 'ms');
+                $('#apiErrors').text(stats.api_errors);
+                
+                // Format last test result
+                let lastTest = 'Never tested';
+                if (stats.last_test_time) {
+                    const testDate = new Date(stats.last_test_time);
+                    const result = stats.last_test_result ? 'Success' : 'Failed';
+                    lastTest = `${result} (${testDate.toLocaleString()})`;
+                }
+                $('#lastTestResult').text(lastTest);
+                
+                statsDiv.show();
+            } else {
+                statsDiv.html(`
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Spotify integration is not enabled or configured.
+                    </div>
+                `).show();
+            }
+        },
+        error: function() {
+            statsDiv.html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Failed to load Spotify statistics.
+                </div>
+            `).show();
+        }
     });
 }
 </script>

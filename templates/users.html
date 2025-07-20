@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - JellyJams{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-users text-primary me-2"></i>User Management
+        </h1>
+        <p class="text-muted">Configure which users get personalized playlists generated.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-cog me-2"></i>Personalized Playlist Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="userSettingsForm">
+                    <div class="mb-3">
+                        <label for="userSelection" class="form-label">Users for Personalized Playlists</label>
+                        <select class="form-select" id="userSelection">
+                            <option value="all">All Users</option>
+                            <option value="selected">Selected Users Only</option>
+                        </select>
+                        <div class="form-text">Choose whether to generate personalized playlists for all users or only selected ones.</div>
+                    </div>
+
+                    <div id="selectedUsersContainer" class="mb-3" style="display: none;">
+                        <label class="form-label">Select Users</label>
+                        <div id="userCheckboxes" class="border rounded p-3">
+                            <div class="text-center">
+                                <div class="spinner-border spinner-border-sm" role="status">
+                                    <span class="visually-hidden">Loading users...</span>
+                                </div>
+                                <span class="ms-2">Loading users...</span>
+                            </div>
+                        </div>
+                        <div class="form-text">Select which users should have personalized playlists generated.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="newUsersDefault" class="form-label">Default for New Users</label>
+                        <select class="form-select" id="newUsersDefault">
+                            <option value="true">Generate playlists for new users by default</option>
+                            <option value="false">Don't generate playlists for new users by default</option>
+                        </select>
+                        <div class="form-text">What should happen when new users are added to Jellyfin.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="minUserTracks" class="form-label">Minimum Tracks per User</label>
+                        <input type="number" class="form-control" id="minUserTracks" min="1" max="1000" value="10">
+                        <div class="form-text">Minimum number of tracks a user needs to have personalized playlists generated.</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Settings
+                        </button>
+                        <button type="button" class="btn btn-success" id="generatePersonalizedBtn">
+                            <i class="fas fa-user-music me-1"></i>Generate Personalized Playlists
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>How It Works
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>Personalized Playlist Types</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-star text-warning me-2"></i><strong>Top Tracks</strong> - Most played songs</li>
+                    <li><i class="fas fa-compass text-info me-2"></i><strong>Discovery Mix</strong> - Similar songs by genre</li>
+                    <li><i class="fas fa-clock text-success me-2"></i><strong>Recent Favorites</strong> - Recently played tracks</li>
+                    <li><i class="fas fa-music text-primary me-2"></i><strong>Genre Mix</strong> - Blend of favorite genres</li>
+                </ul>
+
+                <h6 class="mt-3">Requirements</h6>
+                <p class="small text-muted">
+                    Users need listening history or favorites in Jellyfin for personalized playlists to work effectively. 
+                    The system analyzes play counts, favorites, and listening patterns.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success/Error Alert -->
+<div id="alertContainer" class="mt-3"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentUsers = [];
+let currentSettings = {};
+
+$(document).ready(function() {
+    loadUsers();
+    loadCurrentSettings();
+    
+    // Handle user selection change
+    $('#userSelection').change(function() {
+        const selection = $(this).val();
+        if (selection === 'selected') {
+            $('#selectedUsersContainer').show();
+        } else {
+            $('#selectedUsersContainer').hide();
+        }
+    });
+    
+    // Handle form submission
+    $('#userSettingsForm').submit(function(e) {
+        e.preventDefault();
+        saveSettings();
+    });
+    
+    // Handle generate personalized playlists button
+    $('#generatePersonalizedBtn').click(function() {
+        generatePersonalizedPlaylists();
+    });
+});
+
+function loadUsers() {
+    $.ajax({
+        url: '/api/users',
+        method: 'GET',
+        success: function(data) {
+            if (data.success) {
+                currentUsers = data.users;
+                renderUserCheckboxes();
+            } else {
+                showAlert('Failed to load users: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('Error loading users. Please check your Jellyfin connection.', 'danger');
+        }
+    });
+}
+
+function loadCurrentSettings() {
+    $.ajax({
+        url: '/api/user_settings',
+        method: 'GET',
+        success: function(data) {
+            if (data.success) {
+                currentSettings = data.settings;
+                populateForm();
+            } else {
+                showAlert('Failed to load settings: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('Error loading settings.', 'danger');
+        }
+    });
+}
+
+function renderUserCheckboxes() {
+    const container = $('#userCheckboxes');
+    container.empty();
+    
+    if (currentUsers.length === 0) {
+        container.html('<p class="text-muted mb-0">No users found in Jellyfin.</p>');
+        return;
+    }
+    
+    currentUsers.forEach(user => {
+        const userName = user.Name || 'Unknown User';
+        const userId = user.Id || '';
+        
+        const checkbox = $(`
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${userName}" id="user_${userId}">
+                <label class="form-check-label" for="user_${userId}">
+                    ${escapeHtml(userName)}
+                </label>
+            </div>
+        `);
+        
+        container.append(checkbox);
+    });
+}
+
+function populateForm() {
+    // Set user selection mode
+    if (currentSettings.personal_playlist_users === 'all') {
+        $('#userSelection').val('all');
+        $('#selectedUsersContainer').hide();
+    } else {
+        $('#userSelection').val('selected');
+        $('#selectedUsersContainer').show();
+        
+        // Check selected users
+        const selectedUsers = currentSettings.personal_playlist_users.split(',').map(u => u.trim());
+        selectedUsers.forEach(userName => {
+            $(`#userCheckboxes input[value="${userName}"]`).prop('checked', true);
+        });
+    }
+    
+    // Set other settings
+    $('#newUsersDefault').val(currentSettings.personal_playlist_new_users_default ? 'true' : 'false');
+    $('#minUserTracks').val(currentSettings.personal_playlist_min_user_tracks || 10);
+}
+
+function saveSettings() {
+    const userSelection = $('#userSelection').val();
+    let selectedUsers = 'all';
+    
+    if (userSelection === 'selected') {
+        const checkedUsers = [];
+        $('#userCheckboxes input:checked').each(function() {
+            checkedUsers.push($(this).val());
+        });
+        selectedUsers = checkedUsers.join(',');
+        
+        if (checkedUsers.length === 0) {
+            showAlert('Please select at least one user or choose "All Users".', 'warning');
+            return;
+        }
+    }
+    
+    const settings = {
+        personal_playlist_users: selectedUsers,
+        personal_playlist_new_users_default: $('#newUsersDefault').val() === 'true',
+        personal_playlist_min_user_tracks: parseInt($('#minUserTracks').val())
+    };
+    
+    $.ajax({
+        url: '/api/user_settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(settings),
+        success: function(data) {
+            if (data.success) {
+                showAlert('Settings saved successfully!', 'success');
+                currentSettings = settings;
+            } else {
+                showAlert('Failed to save settings: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('Error saving settings. Please try again.', 'danger');
+        }
+    });
+}
+
+function generatePersonalizedPlaylists() {
+    const button = $('#generatePersonalizedBtn');
+    const originalText = button.html();
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Generating...');
+    
+    $.ajax({
+        url: '/api/generate_personalized',
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            if (data.success) {
+                showAlert('Personalized playlists generated successfully!', 'success');
+            } else {
+                showAlert('Failed to generate personalized playlists: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            button.prop('disabled', false);
+            button.html(originalText);
+            showAlert('Error generating personalized playlists. Please try again.', 'danger');
+        }
+    });
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('#alertContainer').html(alertHtml);
+    
+    // Auto-dismiss success alerts after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            $('.alert').alert('close');
+        }, 5000);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

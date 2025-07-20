@@ -1,27 +1,35 @@
 services:
   vibecodeplugin:
     build: .
-    container_name: vibecodeplugin
+    container_name: jellyjams
     environment:
-      - JELLYFIN_URL=http://jellyfin:8096
+      # Essential container settings (not configurable via web UI)
+      - JELLYFIN_URL=${JELLYFIN_URL}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - PLAYLIST_FOLDER=/app/playlists
-      - LOG_LEVEL=INFO
-      - GENERATION_INTERVAL=24
-      - MAX_TRACKS_PER_PLAYLIST=100
-      - MIN_TRACKS_PER_PLAYLIST=5
-      - EXCLUDED_GENRES=
-      - SHUFFLE_TRACKS=true
-      - PLAYLIST_TYPES=Genre,Year,Artist
-      - ENABLE_WEB_UI=true
-      - WEB_PORT=5000
+      - PLAYLIST_FOLDER=${PLAYLIST_FOLDER}
+      - ENABLE_WEB_UI=${ENABLE_WEB_UI}
+      - WEB_PORT=${WEB_PORT}
+      # Default fallback values (web UI settings will override these)
+      - LOG_LEVEL=${LOG_LEVEL}
+      - GENERATION_INTERVAL=${GENERATION_INTERVAL}
+      - MAX_TRACKS_PER_PLAYLIST=${MAX_TRACKS_PER_PLAYLIST}
+      - MIN_TRACKS_PER_PLAYLIST=${MIN_TRACKS_PER_PLAYLIST}
+      - EXCLUDED_GENRES=${EXCLUDED_GENRES}
+      - SHUFFLE_TRACKS=${SHUFFLE_TRACKS}
+      - PLAYLIST_TYPES=${PLAYLIST_TYPES}
+      # Discovery playlist diversity controls
+      - DISCOVERY_MAX_SONGS_PER_ALBUM=${DISCOVERY_MAX_SONGS_PER_ALBUM}
+      - DISCOVERY_MAX_SONGS_PER_ARTIST=${DISCOVERY_MAX_SONGS_PER_ARTIST}
+      # Trigger Jellyfin media library scan after playlist creation
+      - TRIGGER_LIBRARY_SCAN=${TRIGGER_LIBRARY_SCAN}
     volumes:
       # Bind mount to Unraid appdata directory
-      - /mnt/user/appdata/vibeplaylist/playlists:/app/playlists
-      - /mnt/user/appdata/vibeplaylist/logs:/app/logs
-      - /mnt/user/appdata/vibeplaylist/config:/app/config
+      - /mnt/user/appdata/jellyjams/playlists:/app/playlists
+      - /mnt/user/appdata/jellyjams/logs:/app/logs
+      - /mnt/user/appdata/jellyjams/config:/app/config
+      - /mnt/user/appdata/jellyjams/cover:/app/cover
       # Mount to Jellyfin's playlist directory (update path as needed)
-      - /mnt/user/appdata/vibeplaylist/playlistsjelly:/jellyfin/playlists
+      - /mnt/user/appdata/jellyjams/playlistsjelly:/jellyfin/playlists
     ports:
       - "5000:5000"
     restart: unless-stopped

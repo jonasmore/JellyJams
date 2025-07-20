@@ -4,3 +4,4 @@ python-dotenv==1.0.0
 lxml==4.9.3
 flask==2.3.3
 gunicorn==21.2.0
+spotipy==2.23.0

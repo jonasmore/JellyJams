@@ -8,14 +8,44 @@
 
 ## ✨ Features
 
-- 🎵 **Automatic Playlist Generation** - Creates playlists by Genre, Year, and Artist
-- 🌐 **Modern Web UI** - Beautiful dark-themed interface with responsive design
-- ⚙️ **Smart Configuration** - Web UI settings override environment variables
-- 🎨 **Genre Parsing** - Handles semicolon-separated genres correctly
-- 📊 **Real-time Monitoring** - Dashboard with connection status and playlist stats
-- 🔄 **Scheduled Generation** - Configurable automatic playlist updates
-- 🐳 **Docker Ready** - Easy deployment with Docker Compose
-- 📱 **Mobile Friendly** - Responsive design works on all devices
+### 🎵 Playlist Generation
+- **Multiple Playlist Types** - Genre, Year, Artist, and Personalized playlists
+- **Smart Naming** - Clean playlist names ("Rock Radio", "Back to 1980", "This is Beatles!")
+- **Artist Diversity Control** - Configurable minimum artist diversity for genre/year playlists
+- **Discovery Playlists** - Personalized recommendations with diversity controls (max songs per album/artist)
+- **Jellyfin API Integration** - Creates playlists directly via REST API with proper privacy controls
+
+### 👤 Personalized Features
+- **User-Specific Playlists** - Private playlists based on individual listening habits
+- **Multiple Playlist Types** - Top Tracks, Discovery Mix, Recent Favorites, Genre Mix
+- **User Selection** - Choose specific users or generate for all users
+- **Listening Analytics** - Based on play counts, favorites, and recent activity
+
+### 🎨 Cover Art System
+- **Custom Cover Art** - Support for personalized playlist covers with fallback system
+- **Spotify Integration** - Automatic artist playlist cover downloads from Spotify
+- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.jpg")
+- **Extension Preservation** - Maintains original image formats (PNG, JPG, WebP)
+
+### 🌐 Modern Web Interface
+- **Beautiful Dark Theme** - Modern, responsive design
+- **Real-time Dashboard** - Connection status, playlist stats, and monitoring
+- **Advanced Settings** - Comprehensive configuration with live validation
+- **User Management** - Select users for personalized playlists
+- **Playlist Viewing** - Browse playlist contents directly in the web UI
+
+### ⚙️ Smart Configuration
+- **Web UI Override** - Settings page overrides environment variables
+- **Live Updates** - Changes apply immediately without container restart
+- **Comprehensive Options** - 25+ configurable settings
+- **Privacy Controls** - Separate settings for public vs private playlists
+
+### 🔄 Automation & Integration
+- **Scheduled Generation** - Configurable automatic playlist updates (default: 24 hours)
+- **Media Library Scan** - Automatic Jellyfin library refresh after playlist creation
+- **Docker Ready** - Easy deployment with Docker Compose
+- **Unraid Support** - Dedicated docker-compose configuration
+- **Comprehensive Logging** - Detailed operation tracking and debugging
 
 ## 🚀 Quick Start
 
@@ -55,10 +85,17 @@
 
 ## 🎛️ Configuration
 
-### Environment Variables
+> 📖 **For comprehensive configuration documentation, see [SETTINGS.md](SETTINGS.md)**
+
+### Quick Configuration
+
+JellyJams offers two ways to configure settings:
+1. **Environment Variables** - Set in `.env` file or Docker environment
+2. **Web UI Settings** - Override environment variables with persistent web-based configuration
+
+### Essential Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------|
 | `JELLYFIN_URL` | Your Jellyfin server URL | Required |
 | `JELLYFIN_API_KEY` | Jellyfin API key | Required |
 | `PLAYLIST_FOLDER` | Container playlist directory | `/app/playlists` |
@@ -81,6 +118,31 @@ The web UI allows you to override environment variables with persistent settings
 - **Genre Exclusions** - Select genres to exclude from generation
 - **Playlist Types** - Choose which types to generate
 - **Scheduling** - Configure automatic generation interval
+
+## 🚀 Advanced Features
+
+### 👤 Personalized Playlists
+JellyJams can generate private, user-specific playlists based on individual listening habits:
+- **Top Tracks** - Most played songs for each user
+- **Discovery Mix** - Personalized recommendations with diversity controls
+- **Recent Favorites** - Recently played and favorited tracks
+- **Genre Mix** - Mixed playlist from user's preferred genres
+
+### 🎨 Custom Cover Art
+Support for custom playlist covers with intelligent fallback system:
+- Place images in your cover directory (mapped to `/app/cover`)
+- Exact playlist name matching: `"Top Tracks - Jonas.jpg"`
+- Generic fallbacks: `"Top Tracks - all.png"`
+- Automatic Spotify cover art for artist playlists
+
+### 🎯 Discovery Playlist Controls
+Fine-tune discovery playlists for better variety:
+- **Max songs per album** (default: 1)
+- **Max songs per artist** (default: 2)
+- Configurable via web UI settings
+
+### 🔄 Automatic Library Refresh
+JellyJams automatically triggers a Jellyfin media library scan after playlist creation to ensure playlists appear immediately in your Jellyfin interface.
 
 ## 📁 Generated Playlists
 

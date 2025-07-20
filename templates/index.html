@@ -95,6 +95,14 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3">
+        <div class="card playlist-card">
+            <div class="card-body text-center">
+                <h3 class="text-purple">{{ playlist_stats.personal or 0 }}</h3>
+                <p class="card-text">Personal Playlists</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">
@@ -168,6 +176,12 @@
                     <a href="{{ url_for('playlists') }}" class="btn btn-outline-primary">
                         <i class="fas fa-list me-1"></i>Manage Playlists
                     </a>
+                    <button class="btn btn-success" onclick="generatePlaylists()">
+                        <i class="fas fa-play me-1"></i>Generate Playlists
+                    </button>
+                    <button class="btn btn-info" onclick="generatePersonalizedPlaylists()">
+                        <i class="fas fa-user-music me-1"></i>Generate Personal Playlists
+                    </button>
                 </div>
             </div>
         </div>
@@ -217,6 +231,36 @@ function generatePlaylists() {
     }).fail(function() {
         hideSpinner(button, originalText);
         showAlert('Error generating playlists.', 'danger');
+    });
+}
+
+function generatePersonalizedPlaylists() {
+    const button = $('button[onclick="generatePersonalizedPlaylists()"]');
+    const originalText = button.html();
+    
+    // Show loading state
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Generating Personal Playlists...');
+    
+    $.ajax({
+        url: '/api/generate_personalized',
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(data) {
+            button.prop('disabled', false);
+            button.html(originalText);
+            
+            if (data.success) {
+                showAlert('Personalized playlists generated successfully! Check the Playlists page to see your personal recommendations.', 'success');
+            } else {
+                showAlert('Failed to generate personalized playlists: ' + data.message, 'danger');
+            }
+        },
+        error: function() {
+            button.prop('disabled', false);
+            button.html(originalText);
+            showAlert('Error generating personalized playlists. Please try again.', 'danger');
+        }
     });
 }
 

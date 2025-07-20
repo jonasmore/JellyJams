@@ -1,0 +1,83 @@
+<!-- Spotify Test and Statistics Section -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="d-grid">
+            <button type="button" class="btn btn-success" id="testSpotifyBtn" onclick="testSpotifyConnection()">
+                <i class="fas fa-plug me-2"></i>Test Spotify Connection
+            </button>
+        </div>
+        <div id="spotifyTestResult" class="mt-2" style="display: none;"></div>
+    </div>
+    <div class="col-md-6">
+        <div class="d-grid">
+            <button type="button" class="btn btn-info" onclick="loadSpotifyStats()">
+                <i class="fas fa-chart-bar me-2"></i>View Statistics
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Dashboard -->
+<div id="spotifyStats" class="mt-4" style="display: none;">
+    <h6><i class="fas fa-chart-line me-2"></i>Spotify Integration Statistics</h6>
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h5 id="totalAttempts">0</h5>
+                    <small>Total Attempts</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h5 id="successfulDownloads">0</h5>
+                    <small>Successful Downloads</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h5 id="failedDownloads">0</h5>
+                    <small>Failed Downloads</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h5 id="successRate">0%</h5>
+                    <small>Success Rate</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h6 id="avgResponseTime">0ms</h6>
+                    <small>Avg Response Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h6 id="apiErrors">0</h6>
+                    <small>API Errors</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h6 id="lastTestResult">Never tested</h6>
+                    <small>Last Test</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
