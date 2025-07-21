@@ -21,6 +21,9 @@ services:
       - WEBUI_BASIC_AUTH_ENABLED=${WEBUI_BASIC_AUTH_ENABLED}
       - WEBUI_BASIC_AUTH_USERNAME=${WEBUI_BASIC_AUTH_USERNAME}
       - WEBUI_BASIC_AUTH_PASSWORD=${WEBUI_BASIC_AUTH_PASSWORD}
+      # Discord Notifications
+      - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
       # Local directories for Docker Desktop (using named volumes to avoid path issues)
       - jellyjams_playlists:/app/playlists

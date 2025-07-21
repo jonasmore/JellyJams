@@ -1,10 +1,16 @@
 # JellyJams 🎵
+<p align="center">
+  <img src="https://raw.githubusercontent.com/vibecode/jellyjams/master/jellyjams.jpg" alt="JellyJams Logo" />
+</p>
 
 **JellyJams** is a modern, standalone Docker container that automatically generates music playlists for your Jellyfin media server using the Jellyfin REST API. It features a beautiful dark-themed web UI for easy configuration and management.
 
 ![JellyJams Web UI](https://img.shields.io/badge/Web%20UI-Modern%20Dark%20Theme-8b5cf6)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ed)
 ![Jellyfin](https://img.shields.io/badge/Jellyfin-API%20Integration-00a4dc)
+
+![JellyJams Example](https://raw.githubusercontent.com/vibecode/jellyjams/master/example.jpg)
+
 
 ## ✨ Features
 
@@ -51,6 +57,7 @@
 - **Docker Ready** - Easy deployment with Docker Compose
 - **Unraid Support** - Dedicated docker-compose configuration
 - **Comprehensive Logging** - Detailed operation tracking and debugging
+- **Discord Notifications** - Optional Discord webhook notifications for playlist updates and cover art changes
 
 ## 🔒 Web UI Security
 

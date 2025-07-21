@@ -1907,6 +1907,11 @@ class PlaylistGenerator:
         
         # Remove null bytes and other problematic characters
         sanitized = name.replace('\x00', '').replace('\0', '')
+
+        # Normalize different types of hyphens and dashes to a standard hyphen
+        hyphen_variants = ['\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015']
+        for variant in hyphen_variants:
+            sanitized = sanitized.replace(variant, '-')
         
         # Remove other control characters
         import re
@@ -2036,24 +2041,54 @@ class PlaylistGenerator:
                     else:
                         self.logger.info(f"❌ No genre-specific cover art found for playlist: {name}")
             
-                # For artist playlists, try Spotify cover art if no custom cover was added
+                # For artist playlists, try Spotify cover art first, then fallback to custom generation
                 self.logger.debug(f"🔍 Cover art check - cover_added: {cover_added}, 'This is' in name: {'This is' in name}, spotify enabled: {self.spotify.is_enabled()}")
                 self.logger.debug(f"🔍 Spotify client status: {self.spotify.spotify is not None}")
                 
-                if not cover_added and "This is" in name and self.spotify.is_enabled():
-                    self.logger.info(f"🎨 Attempting to apply Spotify cover art for artist playlist...")
+                if not cover_added and "This is" in name:
                     # Extract artist name from "This is [Artist]!" format
                     artist_name = name.replace("This is ", "").replace("!", "").strip()
                     self.logger.info(f"🎯 Extracted artist name: {artist_name}")
-                    if self.spotify.get_artist_cover_art(artist_name, playlist_dir):
-                        cover_added = True
-                        self.logger.info(f"✅ Applied Spotify cover art for artist playlist: {name}")
+                    
+                    # Try Spotify cover art first if enabled
+                    if self.spotify.is_enabled():
+                        self.logger.info(f"🎨 Attempting to apply Spotify cover art for artist playlist...")
+                        if self.spotify.get_artist_cover_art(artist_name, playlist_dir):
+                            cover_added = True
+                            self.logger.info(f"✅ Applied Spotify cover art for artist playlist: {name}")
+                        else:
+                            self.logger.info(f"❌ No Spotify cover art found for artist: {artist_name}")
                     else:
-                        self.logger.info(f"❌ No Spotify cover art found for artist: {artist_name}")
-                elif not cover_added and "This is" in name:
-                    self.logger.info(f"⚠️ Spotify cover art skipped - Spotify enabled: {self.spotify.is_enabled()}")
-                    if not self.spotify.is_enabled():
+                        self.logger.info(f"⚠️ Spotify cover art skipped - Spotify enabled: {self.spotify.is_enabled()}")
                         self.logger.info(f"🔧 Spotify client not enabled - client status: {self.spotify.spotify is not None}")
+                    
+                    # If Spotify didn't work (disabled or no cover found), try custom cover art generation
+                    if not cover_added:
+                        self.logger.info(f"🎨 Attempting custom cover art generation for artist: {artist_name}")
+                        try:
+                            # Always try to generate custom cover art with "This is [Artist]" text overlay
+                            self.logger.info(f"🎨 Generating custom cover art for artist: {artist_name}")
+                            
+                            # First, find the source image to use as base
+                            artist_cover_path = self._find_artist_cover_image(artist_name)
+                            if artist_cover_path:
+                                # Generate custom cover art with text overlay
+                                cover_dest = playlist_dir / 'cover.jpg'
+                                if self._generate_custom_cover_art(artist_cover_path, artist_name, cover_dest):
+                                    cover_added = True
+                                    self.logger.info(f"✅ Generated custom cover art for artist: {artist_name}")
+                                else:
+                                    self.logger.info(f"❌ Failed to generate custom cover art for artist: {artist_name}")
+                                    # Fallback: copy the original image directly
+                                    self.logger.info(f"🖼️ Fallback: Using original artist cover image: {artist_cover_path}")
+                                    import shutil
+                                    shutil.copy2(artist_cover_path, cover_dest)
+                                    cover_added = True
+                                    self.logger.info(f"✅ Applied existing artist cover art as fallback for: {artist_name}")
+                            else:
+                                self.logger.info(f"❌ No artist cover art found for: {artist_name}")
+                        except Exception as cover_error:
+                            self.logger.error(f"❌ Error generating custom cover art for {artist_name}: {cover_error}")
                 
                 if not cover_added:
                     self.logger.info(f"No cover art applied for playlist: {name}")
@@ -2270,6 +2305,8 @@ class PlaylistGenerator:
             item['Artists'] = parsed_artists
             
             for artist in parsed_artists:
+                if 'Old Mervs' in artist:
+                    self.logger.info(f"[DEBUG] Found 'Old Mervs' during collection: {repr(artist)}")
                 if artist not in artist_data:
                     artist_data[artist] = {'tracks': [], 'albums': set()}
                 artist_data[artist]['tracks'].append(item)
@@ -2325,12 +2362,18 @@ class PlaylistGenerator:
             
             # Create playlist name and log it for debugging
             playlist_name = f"This is {artist}!"
+            if 'Old Mervs' in artist:
+                self.logger.info(f"[DEBUG] Pre-sanitization name for 'Old Mervs': {repr(playlist_name)}")
             self.logger.debug(f"Generated playlist name: {repr(playlist_name)}")
             
             playlist_dir = self.save_playlist("Artist", playlist_name, limited_tracks)
             
             if playlist_dir:
                 created_playlists += 1
+                if 'Old Mervs' in artist:
+                    self.logger.info(f"[DEBUG] Successfully saved playlist for 'Old Mervs' in directory: {playlist_dir}")
+            elif 'Old Mervs' in artist:
+                self.logger.error(f"[DEBUG] Failed to save playlist for 'Old Mervs'. `save_playlist` returned None.")
         
         # Summary logging
         self.logger.info(f"🎤 Artist playlist generation complete: {created_playlists} playlists created")

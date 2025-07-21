@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import logging
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -201,6 +202,163 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+# Discord notification system
+class DiscordNotifier:
+    def __init__(self):
+        self.enabled = False
+        self.webhook_url = ''
+        self._update_config()
+    
+    def _update_config(self):
+        """Update Discord configuration from environment variables or web UI settings"""
+        # Check environment variables first
+        env_enabled = os.getenv('DISCORD_WEBHOOK_ENABLED', '').lower() in ['true', '1', 'yes', 'on']
+        env_url = os.getenv('DISCORD_WEBHOOK_URL', '')
+        
+        if env_enabled or env_url:
+            # Use environment variables
+            self.enabled = env_enabled and bool(env_url)
+            self.webhook_url = env_url
+        else:
+            # Fall back to web UI settings
+            try:
+                config_file = '/app/config/settings.json'
+                if Path(config_file).exists():
+                    with open(config_file, 'r') as f:
+                        settings = json.load(f)
+                    self.enabled = settings.get('discord_webhook_enabled', False) and bool(settings.get('discord_webhook_url', ''))
+                    self.webhook_url = settings.get('discord_webhook_url', '')
+            except Exception as e:
+                logger.debug(f"Could not load Discord settings from web UI: {e}")
+        
+        if self.enabled and self.webhook_url:
+            logger.info("🔔 Discord notifications enabled")
+        elif self.enabled:
+            logger.warning("🔔 Discord notifications enabled but no webhook URL provided")
+            self.enabled = False
+    
+    def send_playlist_summary(self, stats, errors=None):
+        """Send a summary of playlist generation/update to Discord"""
+        if not self.enabled or not self.webhook_url:
+            return
+        
+        try:
+            # Build the summary message
+            title = "🎵 JellyJams Playlist Update Summary"
+            
+            # Create summary lines
+            summary_lines = []
+            if stats.get('artist', {}).get('updated', 0) > 0:
+                new_count = stats.get('artist', {}).get('new', 0)
+                updated_count = stats.get('artist', {}).get('updated', 0)
+                summary_lines.append(f"**{updated_count} Artist Playlists updated** ({new_count} new)")
+            
+            if stats.get('genre', {}).get('updated', 0) > 0:
+                new_count = stats.get('genre', {}).get('new', 0)
+                updated_count = stats.get('genre', {}).get('updated', 0)
+                summary_lines.append(f"**{updated_count} Genre Playlists updated** ({new_count} new)")
+            
+            if stats.get('year', {}).get('updated', 0) > 0:
+                new_count = stats.get('year', {}).get('new', 0)
+                updated_count = stats.get('year', {}).get('updated', 0)
+                summary_lines.append(f"**{updated_count} Decade Playlists updated** ({new_count} new)")
+            
+            if stats.get('personal', {}).get('updated', 0) > 0:
+                new_count = stats.get('personal', {}).get('new', 0)
+                updated_count = stats.get('personal', {}).get('updated', 0)
+                summary_lines.append(f"**{updated_count} Personal Playlists updated** ({new_count} new)")
+                
+                # Add personal playlist users if available
+                users = stats.get('personal', {}).get('users', [])
+                if users:
+                    summary_lines.append(f"Personal Playlist Users: {', '.join(users)}")
+            
+            # Add error information if present
+            error_section = ""
+            if errors and len(errors) > 0:
+                error_count = len(errors)
+                error_section = f"\n\n⚠️ **{error_count} Error{'s' if error_count > 1 else ''}:**\n"
+                # Limit to 10 errors as requested
+                for i, error in enumerate(errors[:10]):
+                    error_section += f"• {error}\n"
+                if len(errors) > 10:
+                    error_section += f"• ... and {len(errors) - 10} more errors"
+            
+            # Build the embed
+            description = "\n".join(summary_lines) if summary_lines else "No playlists were updated."
+            description += error_section
+            
+            embed = {
+                "title": title,
+                "description": description,
+                "color": 0x1DB954 if not errors else 0xFFA500,  # Spotify green or orange if errors
+                "timestamp": datetime.utcnow().isoformat(),
+                "footer": {
+                    "text": "JellyJams",
+                    "icon_url": "https://cdn.discordapp.com/attachments/placeholder/music_note.png"
+                }
+            }
+            
+            payload = {
+                "embeds": [embed]
+            }
+            
+            # Send the webhook
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            response.raise_for_status()
+            
+            logger.info("🔔 Discord notification sent successfully")
+            
+        except Exception as e:
+            logger.error(f"🔔 Failed to send Discord notification: {e}")
+    
+    def send_cover_art_summary(self, updated_count, error_count, errors=None):
+        """Send a summary of cover art updates to Discord"""
+        if not self.enabled or not self.webhook_url:
+            return
+        
+        try:
+            title = "🎨 JellyJams Cover Art Update Summary"
+            
+            description = f"**{updated_count} playlist covers updated**"
+            
+            # Add error information if present
+            if error_count > 0:
+                description += f"\n\n⚠️ **{error_count} Error{'s' if error_count > 1 else ''}:**\n"
+                if errors:
+                    # Limit to 10 errors as requested
+                    for i, error in enumerate(errors[:10]):
+                        description += f"• {error}\n"
+                    if len(errors) > 10:
+                        description += f"• ... and {len(errors) - 10} more errors"
+            
+            embed = {
+                "title": title,
+                "description": description,
+                "color": 0x9B59B6 if error_count == 0 else 0xFFA500,  # Purple or orange if errors
+                "timestamp": datetime.utcnow().isoformat(),
+                "footer": {
+                    "text": "JellyJams",
+                    "icon_url": "https://cdn.discordapp.com/attachments/placeholder/music_note.png"
+                }
+            }
+            
+            payload = {
+                "embeds": [embed]
+            }
+            
+            # Send the webhook
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            response.raise_for_status()
+            
+            logger.info("🔔 Discord cover art notification sent successfully")
+            
+        except Exception as e:
+            logger.error(f"🔔 Failed to send Discord cover art notification: {e}")
+
+# Initialize Discord notifier
+discord_notifier = DiscordNotifier()
+
 @app.route('/')
 @requires_auth
 def index():
@@ -237,11 +395,19 @@ def playlists():
                          playlists=playlist_data['playlists'], 
                          stats=playlist_data['stats'])
 
-@app.route('/users')
+
+
+@app.route('/api/users')
 @requires_auth
-def users():
-    """User management page for personalized playlists"""
-    return render_template('users.html')
+def api_users():
+    """API endpoint to get Jellyfin users"""
+    try:
+        jellyfin_api = JellyfinAPI(config, logger)
+        users = jellyfin_api.get_users()
+        return jsonify({'success': True, 'users': users})
+    except Exception as e:
+        logger.error(f"💥 Failed to get Jellyfin users: {e}")
+        return jsonify({'success': False, 'message': 'Failed to get Jellyfin users.'})
 
 @app.route('/logs')
 @requires_auth
@@ -264,7 +430,21 @@ def logs():
 def api_settings():
     """API endpoint for settings"""
     if request.method == 'GET':
-        return jsonify(config_manager.load_settings())
+        settings = config_manager.load_settings()
+        
+        # Add Discord webhook settings (check environment variables first)
+        discord_enabled_env = os.getenv('DISCORD_WEBHOOK_ENABLED', '').lower() in ['true', '1', 'yes', 'on']
+        discord_url_env = os.getenv('DISCORD_WEBHOOK_URL', '')
+        
+        # Use environment variables if set, otherwise use web UI settings
+        if discord_enabled_env or discord_url_env:
+            settings['discord_webhook_enabled'] = discord_enabled_env
+            settings['discord_webhook_url'] = discord_url_env
+        else:
+            settings['discord_webhook_enabled'] = settings.get('discord_webhook_enabled', False)
+            settings['discord_webhook_url'] = settings.get('discord_webhook_url', '')
+        
+        return jsonify(settings)
     
     elif request.method == 'POST':
         try:
@@ -314,6 +494,9 @@ def api_generate():
         logger.info(f"🔧 Jellyfin URL: {config.jellyfin_url}")
         logger.info(f"🔧 API Key configured: {'Yes' if config.api_key else 'No'}")
         
+        # Get playlist stats before generation
+        stats_before = get_playlist_stats()
+        
         # Import here to ensure logging is set up
         from vibecodeplugin import setup_logging
         
@@ -324,13 +507,53 @@ def api_generate():
         generator = PlaylistGenerator(config, generator_logger)
         logger.info("🎤 Starting playlist generation from web UI...")
         
-        generator.generate_playlists()
+        # Store errors for Discord notification
+        generation_errors = []
+        
+        try:
+            generator.generate_playlists()
+        except Exception as gen_error:
+            generation_errors.append(str(gen_error))
+            raise
+        
+        # Get playlist stats after generation
+        stats_after = get_playlist_stats()
+        
+        # Calculate changes for Discord notification
+        discord_stats = {
+            'artist': {
+                'updated': stats_after.get('artist', 0),
+                'new': max(0, stats_after.get('artist', 0) - stats_before.get('artist', 0))
+            },
+            'genre': {
+                'updated': stats_after.get('genre', 0),
+                'new': max(0, stats_after.get('genre', 0) - stats_before.get('genre', 0))
+            },
+            'year': {
+                'updated': stats_after.get('year', 0),
+                'new': max(0, stats_after.get('year', 0) - stats_before.get('year', 0))
+            },
+            'personal': {
+                'updated': stats_after.get('personal', 0),
+                'new': max(0, stats_after.get('personal', 0) - stats_before.get('personal', 0)),
+                'users': []  # Will be populated if personal playlists are generated
+            }
+        }
+        
+        # Send Discord notification if any playlists were updated
+        total_updated = sum(cat['updated'] for cat in discord_stats.values())
+        if total_updated > 0 or generation_errors:
+            discord_notifier.send_playlist_summary(discord_stats, generation_errors)
         
         logger.info("✅ Playlist generation completed successfully from API")
         return jsonify({'success': True, 'message': 'Playlist generation completed successfully'})
     except Exception as e:
         logger.error(f"❌ API playlist generation failed: {e}")
         logger.exception("Full error details:")
+        
+        # Send Discord notification for failed generation
+        discord_notifier.send_playlist_summary({}, [str(e)])
+        
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/generate_personalized', methods=['POST'])
@@ -338,6 +561,9 @@ def api_generate():
 def api_generate_personalized():
     """API endpoint to trigger personalized playlist generation"""
     try:
+        # Get playlist stats before generation
+        stats_before = get_playlist_stats()
+        
         generator = PlaylistGenerator(config, logger)
         
         # Get audio items first
@@ -345,11 +571,45 @@ def api_generate_personalized():
         if not audio_items:
             return jsonify({'success': False, 'message': 'No audio items found'})
         
-        # Generate personalized playlists
-        generator.generate_personalized_playlists(audio_items)
+        # Store errors for Discord notification
+        generation_errors = []
+        
+        try:
+            # Generate personalized playlists
+            generator.generate_personalized_playlists(audio_items)
+        except Exception as gen_error:
+            generation_errors.append(str(gen_error))
+            raise
+        
+        # Get playlist stats after generation
+        stats_after = get_playlist_stats()
+        
+        # Calculate changes for Discord notification
+        personal_updated = stats_after.get('personal', 0)
+        personal_new = max(0, stats_after.get('personal', 0) - stats_before.get('personal', 0))
+        
+        # Get user list for personal playlists
+        user_list = getattr(config, 'personal_playlist_users', [])
+        
+        discord_stats = {
+            'personal': {
+                'updated': personal_updated,
+                'new': personal_new,
+                'users': user_list
+            }
+        }
+        
+        # Send Discord notification if any personal playlists were updated
+        if personal_updated > 0 or generation_errors:
+            discord_notifier.send_playlist_summary(discord_stats, generation_errors)
+        
         return jsonify({'success': True, 'message': 'Personalized playlist generation completed'})
     except Exception as e:
         logger.error(f"Error generating personalized playlists: {e}")
+        
+        # Send Discord notification for failed generation
+        discord_notifier.send_playlist_summary({}, [str(e)])
+        
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/delete_playlist', methods=['POST'])
@@ -639,18 +899,6 @@ def api_artists():
             'artists': []
         })
 
-@app.route('/api/users')
-@requires_auth
-def api_users():
-    """Get all Jellyfin users"""
-    try:
-        jellyfin_api = JellyfinAPI(config, logger)
-        users = jellyfin_api.get_users()
-        return jsonify({'success': True, 'users': users})
-    except Exception as e:
-        logger.error(f"Error getting users: {e}")
-        return jsonify({'success': False, 'message': str(e)})
-
 @app.route('/api/update-covers', methods=['POST'])
 @requires_auth
 def api_update_covers():
@@ -861,6 +1109,15 @@ def api_update_covers():
         message = f"Cover art update complete: {updated_count} updated, {skipped_count} skipped, {error_count} errors"
         logger.info(f"🎨 {message}")
         
+        # Send Discord notification for cover art updates
+        if updated_count > 0 or error_count > 0:
+            # Collect error messages for Discord notification (limit to 10)
+            error_messages = []
+            if hasattr(locals(), 'cover_errors') and cover_errors:
+                error_messages = cover_errors[:10]
+            
+            discord_notifier.send_cover_art_summary(updated_count, error_count, error_messages)
+        
         return jsonify({
             'success': True,
             'message': message,
@@ -871,6 +1128,10 @@ def api_update_covers():
         
     except Exception as e:
         logger.error(f"Error in cover art update: {e}")
+        
+        # Send Discord notification for cover art update failure
+        discord_notifier.send_cover_art_summary(0, 1, [str(e)])
+        
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/user_settings', methods=['GET'])
