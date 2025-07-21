@@ -24,16 +24,19 @@
         <div class="d-flex gap-2 justify-content-end">
             <div class="btn-group" role="group">
                 <button type="button" class="btn btn-outline-primary" onclick="filterPlaylists('all')">
-                    <i class="fas fa-list me-1"></i>All ({{ playlists|length }})
+                    <i class="fas fa-list me-1"></i>All ({{ stats.total }})
                 </button>
                 <button type="button" class="btn btn-outline-success" onclick="filterPlaylists('genre')">
-                    <i class="fas fa-music me-1"></i>Genres
+                    <i class="fas fa-music me-1"></i>Genres ({{ stats.genre }})
                 </button>
                 <button type="button" class="btn btn-outline-info" onclick="filterPlaylists('year')">
-                    <i class="fas fa-calendar me-1"></i>Years
+                    <i class="fas fa-calendar me-1"></i>Years ({{ stats.year }})
                 </button>
                 <button type="button" class="btn btn-outline-warning" onclick="filterPlaylists('artist')">
-                    <i class="fas fa-user me-1"></i>Artists
+                    <i class="fas fa-user me-1"></i>Artists ({{ stats.artist }})
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterPlaylists('personal')">
+                    <i class="fas fa-heart me-1"></i>Personal ({{ stats.personal }})
                 </button>
             </div>
             <button type="button" class="btn btn-primary" onclick="updateCovers()" id="updateCoversBtn">
@@ -50,16 +53,18 @@
     {% for playlist in playlists %}
         <div class="col-md-6 col-lg-4 mb-3 playlist-item" 
              data-name="{{ playlist.name.lower() }}"
-             data-type="{% if 'Genre:' in playlist.name %}genre{% elif 'Year:' in playlist.name %}year{% elif 'Artist:' in playlist.name %}artist{% else %}other{% endif %}">
+             data-type="{{ playlist.category }}">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">
-                        {% if 'Genre:' in playlist.name %}
+                        {% if playlist.category == 'genre' %}
                             <i class="fas fa-music text-success me-1"></i>
-                        {% elif 'Year:' in playlist.name %}
+                        {% elif playlist.category == 'year' %}
                             <i class="fas fa-calendar text-info me-1"></i>
-                        {% elif 'Artist:' in playlist.name %}
+                        {% elif playlist.category == 'artist' %}
                             <i class="fas fa-user text-warning me-1"></i>
+                        {% elif playlist.category == 'personal' %}
+                            <i class="fas fa-heart text-secondary me-1"></i>
                         {% else %}
                             <i class="fas fa-list text-secondary me-1"></i>
                         {% endif %}

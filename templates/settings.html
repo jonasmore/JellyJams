@@ -352,6 +352,21 @@
                             <option value="ERROR" {% if settings.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
                         </select>
                     </div>
+                    
+                    <!-- Basic Authentication Info -->
+                    <div class="alert alert-info mb-4">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-shield-alt me-2"></i>Basic Authentication
+                        </h6>
+                        <p class="mb-2">Web UI authentication is configured via environment variables only:</p>
+                        <ul class="mb-0">
+                            <li><code>WEBUI_BASIC_AUTH_ENABLED=true/false</code></li>
+                            <li><code>WEBUI_BASIC_AUTH_USERNAME=your_username</code></li>
+                            <li><code>WEBUI_BASIC_AUTH_PASSWORD=your_password</code></li>
+                        </ul>
+                        <small class="text-muted">Restart container after changing authentication settings.</small>
+                    </div>
+                    
                     <div class="mb-3">
                         <label for="min_albums_per_decade" class="form-label">Minimum Albums per Decade</label>
                         <input type="number" class="form-control" id="min_albums_per_decade" 
@@ -819,5 +834,24 @@ function loadSpotifyStats() {
         }
     });
 }
+
+// Schedule mode change handler
+function handleScheduleModeChange() {
+    const mode = $('#schedule_mode').val();
+    const timeField = $('#schedule-time-field');
+    
+    if (mode === 'daily') {
+        timeField.show();
+    } else {
+        timeField.hide();
+    }
+}
+
+// Initialize form handlers
+$(document).ready(function() {
+    // Schedule mode handler
+    $('#schedule_mode').change(handleScheduleModeChange);
+    handleScheduleModeChange(); // Initial state
+});
 </script>
 {% endblock %}

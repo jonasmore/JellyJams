@@ -82,6 +82,8 @@ This ensures genre and year playlists have sufficient artist variety. Playlists 
 
 ## 👤 Personalized Playlist Settings
 
+> **⚠️ Important**: Personal playlists require the [Jellyfin Playback Reporting Plugin](https://github.com/jellyfin/jellyfin-plugin-playbackreporting) to be installed and enabled in your Jellyfin server. This plugin provides the listening statistics needed for Top Tracks and personalized recommendations.
+
 ### User Selection
 | Variable | Description | Default | Options |
 |----------|-------------|---------|---------|
@@ -142,21 +144,181 @@ JellyJams supports custom playlist covers with intelligent fallback:
 
 **Docker Volume**: Map your cover directory to `/app/cover`
 
-```yaml
-volumes:
-  - /path/to/your/covers:/app/cover
+#### Other Playlist Types
+1. **Predefined Custom Covers** - Exact name matching
+2. **Generic Fallbacks** - Type-specific defaults
+3. **No cover art** - Playlist created without cover
+
+### 🖼️ Custom Generated Covers
+
+For artist playlists, JellyJams automatically generates professional covers:
+
+| Feature | Description |
+|---------|-------------|
+| **Source Image** | Uses artist's `folder.jpg` from music directory |
+| **Text Overlay** | "This is [Artist]" with adaptive colors |
+| **Unicode Support** | Handles special characters (alt‐J, Sigur Rós, Mötley Crüe) |
+| **Quality** | High-resolution PNG/JPG |
+| **Color Analysis** | Automatic brightness detection for optimal contrast |
+
+#### Music Directory Integration
+JellyJams searches these paths for artist folders:
+- `/mnt/user/media/data/music/[Artist]/` (Unraid)
+- `/app/music/[Artist]/`
+- `/music/[Artist]/`
+- `/media/[Artist]/`
+- `/data/music/[Artist]/`
+
+#### Supported Cover Files
+- `folder.jpg`, `folder.jpeg`, `folder.png`
+- `cover.jpg`, `cover.jpeg`, `cover.png`
+- `artist.jpg`, `artist.jpeg`, `artist.png`
+- `thumb.jpg`, `thumb.jpeg`, `thumb.png`
+
+### 📁 Predefined Custom Covers
+
+Place custom images in your cover directory (mapped to `/app/cover/`):
+
+#### Directory Structure Examples
+```
+/app/cover/
+├── Top Tracks - Jonas.jpg          # Personal playlist (specific user)
+├── Top Tracks - all.jpg            # Personal playlist (generic fallback)
+├── Discovery Mix - Sarah.webp      # Personal playlist (specific user)
+├── Discovery Mix - all.jpg         # Personal playlist (generic fallback)
+├── Back to the 1990s.jpg           # Decade playlist
+├── Back to the 1980s.png           # Decade playlist
+├── Jazz Radio.jpg                  # Genre playlist
+├── Rock Radio.png                  # Genre playlist
+├── This is Beatles!.jpg            # Artist playlist (manual override)
+└── This is - all.png               # Artist playlist (generic fallback)
 ```
 
-### Cover Art Examples
+#### Naming Conventions
+| Playlist Type | Exact Match | Generic Fallback |
+|---------------|-------------|------------------|
+| **Personal** | `Top Tracks - Jonas.jpg` | `Top Tracks - all.jpg` |
+| **Personal** | `Discovery Mix - Sarah.png` | `Discovery Mix - all.png` |
+| **Decade** | `Back to the 1990s.jpg` | `Back to - all.jpg` |
+| **Genre** | `Jazz Radio.jpg` | `Radio - all.jpg` |
+| **Artist** | `This is Beatles!.jpg` | `This is - all.jpg` |
+
+### 🔄 Update Covers Feature
+
+Refresh cover art for existing playlists without regenerating them:
+
+#### Web UI Usage
+1. Navigate to **Playlists** page (`/playlists`)
+2. Click **"Update Covers"** button
+3. Monitor real-time progress with statistics
+4. Page automatically refreshes when complete
+
+#### How It Works
+- **Selective Processing**: Focuses on artist playlists for efficiency
+- **Multi-tier Approach**: Tries all cover art sources in priority order
+- **Progress Tracking**: Shows updated/skipped/error counts
+- **Timeout Protection**: 5-minute timeout for long operations
+- **Error Handling**: Graceful fallbacks with detailed logging
+
+#### When to Use
+- After adding new cover art files to `/app/cover/`
+- When Spotify integration settings change
+- After updating music library with new artist folders
+- To fix missing or corrupted cover art
+
+### 🛠️ Cover Art Troubleshooting
+
+#### Custom Generated Covers Not Working
+**Symptoms**: Artist playlists have no cover art or fallback to generic covers
+
+**Solutions**:
+1. **Check Music Directory Access**:
+   ```bash
+   # Verify Docker volume mount includes music directory
+   docker-compose logs jellyjams | grep "music directory"
+   ```
+
+2. **Verify Artist Folder Structure**:
+   ```
+   /your/music/directory/
+   ├── Artist Name/
+   │   ├── folder.jpg          # ✅ This works
+   │   ├── cover.png           # ✅ This works
+   │   └── Album/
+   └── Another Artist/
+       └── artist.jpeg         # ✅ This works
+   ```
+
+3. **Check Unicode Issues**:
+   - Look for encoding errors in logs
+   - Special characters are automatically converted (alt‐J → alt-J)
+   - Enable DEBUG logging for detailed character processing
+
+4. **Font Issues**:
+   ```bash
+   # Check if PIL/Pillow is properly installed
+   docker exec jellyjams python -c "from PIL import Image, ImageDraw, ImageFont; print('PIL OK')"
+   ```
+
+#### Predefined Covers Not Loading
+**Symptoms**: Custom covers in `/app/cover/` are ignored
+
+**Solutions**:
+1. **Verify Docker Volume Mount**:
+   ```yaml
+   volumes:
+     - /host/path/covers:/app/cover  # Must be mounted
+   ```
+
+2. **Check File Permissions**:
+   ```bash
+   # Ensure container can read cover files
+   ls -la /host/path/covers/
+   ```
+
+3. **Verify Exact Naming**:
+   - File names must match playlist names exactly
+   - Case-sensitive matching
+   - Include file extensions
+
+4. **Supported Formats**:
+   - `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
+   - Other formats may not be recognized
+
+#### Spotify Integration Issues
+**Symptoms**: Spotify cover art not downloading
+
+**Solutions**:
+1. **Test Connection in Web UI**:
+   - Go to Settings → Spotify Integration
+   - Click "Test Connection"
+   - Check statistics and error messages
+
+2. **Verify Credentials**:
+   ```bash
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   SPOTIFY_COVER_ART_ENABLED=true
+   ```
+
+3. **Check Rate Limits**:
+   - Spotify API has rate limits
+   - Enable DEBUG logging to see API responses
+   - Consider reducing concurrent requests
+
+#### Debug Logging
+Enable comprehensive cover art debugging:
+```bash
+LOG_LEVEL=DEBUG
 ```
-/your/cover/directory/
-├── Top Tracks - Jonas.jpg          # Specific user
-├── Top Tracks - all.png            # Generic fallback
-├── Discovery Mix - Sarah.webp      # Specific user
-├── Discovery Mix - all.jpg         # Generic fallback
-├── This is Beatles!.jpg            # Specific artist
-└── This is - all.png               # Generic artist fallback
-```
+
+This provides detailed information about:
+- Artist folder search paths and results
+- Cover art file detection and copying
+- Unicode character processing
+- Image generation steps
+- Spotify API calls and responses
+- Fallback system progression
 
 ## 🎧 Spotify Integration Settings
 
@@ -319,9 +481,11 @@ EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
    - Check logs for detailed error messages
 
 3. **Personalized playlists empty**
+   - **Install Required Plugin**: Ensure [Jellyfin Playback Reporting Plugin](https://github.com/jellyfin/jellyfin-plugin-playbackreporting) is installed and enabled
    - Increase `PERSONAL_PLAYLIST_MIN_USER_TRACKS`
    - Check user has listening history in Jellyfin
    - Verify user selection in settings
+   - Confirm plugin is collecting playback data
 
 4. **Spotify integration not working**
    - Test connection in web UI settings

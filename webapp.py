@@ -10,7 +10,10 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response
+from werkzeug.security import check_password_hash, generate_password_hash
+import base64
 from vibecodeplugin import Config, PlaylistGenerator, JellyfinAPI, setup_logging, SpotifyClient
 
 app = Flask(__name__)
@@ -55,7 +58,7 @@ class ConfigManager:
             'max_tracks_per_playlist': config.max_tracks_per_playlist,
             'min_tracks_per_playlist': config.min_tracks_per_playlist,
             'excluded_genres': config.excluded_genres,
-        'excluded_artists': getattr(config, 'excluded_artists', []),
+            'excluded_artists': getattr(config, 'excluded_artists', []),
             'shuffle_tracks': config.shuffle_tracks,
             'playlist_types': config.playlist_types,
             'generation_interval': config.generation_interval,
@@ -131,7 +134,75 @@ class ConfigManager:
 
 config_manager = ConfigManager()
 
+# Basic authentication configuration
+_auth_config_cache = None
+
+def get_auth_config():
+    """Get authentication configuration from environment variables only"""
+    global _auth_config_cache
+    
+    # Cache the config to avoid repeated environment variable reads and logging
+    if _auth_config_cache is not None:
+        return _auth_config_cache
+    
+    env_enabled = os.getenv('WEBUI_BASIC_AUTH_ENABLED', '').lower()
+    env_username = os.getenv('WEBUI_BASIC_AUTH_USERNAME', '')
+    env_password = os.getenv('WEBUI_BASIC_AUTH_PASSWORD', '')
+    
+    # Check if authentication is explicitly enabled
+    if env_enabled in ['true', '1', 'yes', 'on']:
+        _auth_config_cache = {
+            'enabled': True,
+            'username': env_username or 'admin',
+            'password': env_password or 'admin'
+        }
+        logger.info(f"🔐 Basic authentication enabled for user: {_auth_config_cache['username']}")
+    else:
+        _auth_config_cache = {'enabled': False, 'username': '', 'password': ''}
+        logger.info("🔐 Basic authentication disabled")
+    
+    return _auth_config_cache
+
+def check_auth(username, password):
+    """Check if provided credentials are valid"""
+    auth_config = get_auth_config()
+    if not auth_config['enabled']:
+        return True  # Authentication disabled
+    
+    return (username == auth_config['username'] and 
+            password == auth_config['password'])
+
+def authenticate():
+    """Send a 401 response that enables basic auth"""
+    return Response(
+        'Authentication required.\n'
+        'Please provide valid credentials to access JellyJams Web UI.', 401,
+        {'WWW-Authenticate': 'Basic realm="JellyJams Web UI"'})
+
+def requires_auth(f):
+    """Decorator that requires authentication if enabled"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_config = get_auth_config()
+        
+        # If authentication is disabled, allow access
+        if not auth_config['enabled']:
+            return f(*args, **kwargs)
+        
+        # Check for valid credentials
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            logger.warning(f"🔒 Unauthorized access attempt to {request.endpoint}")
+            return authenticate()
+        
+        # Only log authentication success for non-API routes to reduce log spam
+        if not request.endpoint.startswith('api_'):
+            logger.debug(f"🔓 Authenticated access to {request.endpoint}")
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/')
+@requires_auth
 def index():
     """Main dashboard"""
     settings = config_manager.load_settings()
@@ -149,6 +220,7 @@ def index():
                          jellyfin_connected=jellyfin_connected)
 
 @app.route('/settings')
+@requires_auth
 def settings():
     """Settings page - optimized for fast loading"""
     settings = config_manager.load_settings()
@@ -157,17 +229,22 @@ def settings():
     return render_template('settings.html', settings=settings)
 
 @app.route('/playlists')
+@requires_auth
 def playlists():
     """Playlist management page"""
-    playlist_info = get_detailed_playlist_info()
-    return render_template('playlists.html', playlists=playlist_info)
+    playlist_data = get_detailed_playlist_info()
+    return render_template('playlists.html', 
+                         playlists=playlist_data['playlists'], 
+                         stats=playlist_data['stats'])
 
 @app.route('/users')
+@requires_auth
 def users():
     """User management page for personalized playlists"""
     return render_template('users.html')
 
 @app.route('/logs')
+@requires_auth
 def logs():
     """View logs"""
     try:
@@ -183,6 +260,7 @@ def logs():
     return render_template('logs.html', log_content=log_content)
 
 @app.route('/api/settings', methods=['GET', 'POST'])
+@requires_auth
 def api_settings():
     """API endpoint for settings"""
     if request.method == 'GET':
@@ -227,6 +305,7 @@ def save_web_ui_settings(new_settings):
         raise
 
 @app.route('/api/generate', methods=['POST'])
+@requires_auth
 def api_generate():
     """API endpoint to trigger playlist generation"""
     try:
@@ -255,6 +334,7 @@ def api_generate():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/generate_personalized', methods=['POST'])
+@requires_auth
 def api_generate_personalized():
     """API endpoint to trigger personalized playlist generation"""
     try:
@@ -273,6 +353,7 @@ def api_generate_personalized():
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/delete_playlist', methods=['POST'])
+@requires_auth
 def api_delete_playlist():
     """API endpoint to delete a playlist"""
     try:
@@ -291,6 +372,7 @@ def api_delete_playlist():
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/delete_all_playlists', methods=['POST'])
+@requires_auth
 def api_delete_all_playlists():
     """API endpoint to delete all playlists"""
     try:
@@ -315,6 +397,7 @@ def api_delete_all_playlists():
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/cover/<path:playlist_name>', methods=['GET'])
+@requires_auth
 def api_cover_art(playlist_name):
     """API endpoint to serve cover art for playlists"""
     try:
@@ -334,6 +417,7 @@ def api_cover_art(playlist_name):
         return '', 404
 
 @app.route('/api/spotify/test', methods=['POST'])
+@requires_auth
 def api_spotify_test():
     """API endpoint to test Spotify integration"""
     try:
@@ -365,6 +449,7 @@ def api_spotify_test():
         })
 
 @app.route('/api/spotify/stats', methods=['GET'])
+@requires_auth
 def api_spotify_stats():
     """API endpoint to get Spotify integration statistics"""
     try:
@@ -405,6 +490,7 @@ def api_spotify_stats():
         })
 
 @app.route('/api/playlist_contents/<path:playlist_name>', methods=['GET'])
+@requires_auth
 def api_playlist_contents(playlist_name):
     """API endpoint to get playlist contents"""
     try:
@@ -481,6 +567,7 @@ def api_playlist_contents(playlist_name):
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/jellyfin_test')
+@requires_auth
 def api_jellyfin_test():
     """Test Jellyfin connection"""
     jellyfin_api = JellyfinAPI(config, logger)
@@ -488,6 +575,7 @@ def api_jellyfin_test():
     return jsonify({'connected': connected})
 
 @app.route('/api/metadata')
+@requires_auth
 def api_metadata():
     """Get Jellyfin metadata - optimized with error handling"""
     try:
@@ -521,6 +609,7 @@ def api_metadata():
         })
 
 @app.route('/api/artists')
+@requires_auth
 def api_artists():
     """Get all artists from Jellyfin for excluded artists functionality"""
     try:
@@ -551,6 +640,7 @@ def api_artists():
         })
 
 @app.route('/api/users')
+@requires_auth
 def api_users():
     """Get all Jellyfin users"""
     try:
@@ -562,6 +652,7 @@ def api_users():
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/update-covers', methods=['POST'])
+@requires_auth
 def api_update_covers():
     """Update cover art for existing playlists with optimized performance to prevent worker timeouts"""
     try:
@@ -783,6 +874,7 @@ def api_update_covers():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/user_settings', methods=['GET'])
+@requires_auth
 def api_get_user_settings():
     """Get current user settings for personalized playlists"""
     try:
@@ -799,6 +891,7 @@ def api_get_user_settings():
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/user_settings', methods=['POST'])
+@requires_auth
 def api_save_user_settings():
     """Save user settings for personalized playlists"""
     try:
@@ -825,39 +918,71 @@ def api_save_user_settings():
         return jsonify({'success': False, 'message': str(e)})
 
 def get_playlist_stats():
-    """Get playlist statistics"""
+    """Get playlist statistics using the same categorization logic as get_detailed_playlist_info"""
     try:
         playlist_dir = Path(config.playlist_folder)
         if not playlist_dir.exists():
-            return {'total': 0, 'genres': 0, 'years': 0, 'artists': 0, 'personal': 0}
+            return {'total': 0, 'genre': 0, 'year': 0, 'artist': 0, 'personal': 0}
         
-        playlists = list(playlist_dir.iterdir())
-        total = len(playlists)
-        
-        genres = len([p for p in playlists if 'Genre:' in p.name])
-        years = len([p for p in playlists if 'Year:' in p.name])
-        artists = len([p for p in playlists if 'Artist:' in p.name])
-        personal = len([p for p in playlists if 'Personal:' in p.name])
-        
-        return {
-            'total': total,
-            'genres': genres,
-            'years': years,
-            'artists': artists,
-            'personal': personal
+        stats = {
+            'total': 0,
+            'genre': 0,
+            'year': 0,
+            'artist': 0,
+            'personal': 0
         }
+        
+        for playlist_path in playlist_dir.iterdir():
+            if playlist_path.is_dir():
+                xml_file = playlist_path / 'playlist.xml'
+                if xml_file.exists():
+                    playlist_name = playlist_path.name
+                    stats['total'] += 1
+                    
+                    # Use same categorization logic as get_detailed_playlist_info
+                    if playlist_name.startswith('This is '):
+                        stats['artist'] += 1
+                    elif playlist_name.startswith('Back to the '):
+                        stats['year'] += 1
+                    elif playlist_name in ['Top Tracks - all', 'Discovery Mix', 'Recent Favorites', 'Genre Mix']:
+                        stats['personal'] += 1
+                    else:
+                        # Check if it's a genre playlist (not starting with special prefixes)
+                        if not any(playlist_name.startswith(prefix) for prefix in ['This is ', 'Back to the ', 'Top Tracks', 'Discovery', 'Recent', 'Genre']):
+                            stats['genre'] += 1
+                        else:
+                            stats['personal'] += 1
+        
+        return stats
     except Exception as e:
         logger.error(f"Error getting playlist stats: {e}")
-        return {'total': 0, 'genres': 0, 'years': 0, 'artists': 0, 'personal': 0}
+        return {'total': 0, 'genre': 0, 'year': 0, 'artist': 0, 'personal': 0}
 
 def get_detailed_playlist_info():
-    """Get detailed playlist information"""
+    """Get detailed playlist information with proper categorization"""
     try:
         playlist_dir = Path(config.playlist_folder)
         if not playlist_dir.exists():
-            return []
+            return {
+                'playlists': [],
+                'stats': {
+                    'total': 0,
+                    'genre': 0,
+                    'year': 0,
+                    'artist': 0,
+                    'personal': 0
+                }
+            }
         
         playlists = []
+        stats = {
+            'total': 0,
+            'genre': 0,
+            'year': 0,
+            'artist': 0,
+            'personal': 0
+        }
+        
         for playlist_path in playlist_dir.iterdir():
             if playlist_path.is_dir():
                 xml_file = playlist_path / 'playlist.xml'
@@ -878,18 +1003,55 @@ def get_detailed_playlist_info():
                     except:
                         pass
                     
+                    # Determine playlist category
+                    playlist_name = playlist_path.name
+                    category = 'personal'  # Default category
+                    
+                    if playlist_name.startswith('This is '):
+                        category = 'artist'
+                        stats['artist'] += 1
+                    elif playlist_name.startswith('Back to the '):
+                        category = 'year'
+                        stats['year'] += 1
+                    elif playlist_name in ['Top Tracks - all', 'Discovery Mix', 'Recent Favorites', 'Genre Mix']:
+                        category = 'personal'
+                        stats['personal'] += 1
+                    else:
+                        # Check if it's a genre playlist (not starting with special prefixes)
+                        # Genre playlists are typically just the genre name
+                        if not any(playlist_name.startswith(prefix) for prefix in ['This is ', 'Back to the ', 'Top Tracks', 'Discovery', 'Recent', 'Genre']):
+                            category = 'genre'
+                            stats['genre'] += 1
+                        else:
+                            stats['personal'] += 1
+                    
+                    stats['total'] += 1
+                    
                     playlists.append({
-                        'name': playlist_path.name,
+                        'name': playlist_name,
+                        'category': category,
                         'track_count': track_count,
                         'created': created.strftime('%Y-%m-%d %H:%M:%S'),
                         'modified': modified.strftime('%Y-%m-%d %H:%M:%S'),
                         'size': xml_file.stat().st_size
                     })
         
-        return sorted(playlists, key=lambda x: x['name'])
+        return {
+            'playlists': sorted(playlists, key=lambda x: x['name']),
+            'stats': stats
+        }
     except Exception as e:
         logger.error(f"Error getting playlist info: {e}")
-        return []
+        return {
+            'playlists': [],
+            'stats': {
+                'total': 0,
+                'genre': 0,
+                'year': 0,
+                'artist': 0,
+                'personal': 0
+            }
+        }
 
 def get_jellyfin_metadata(jellyfin_api):
     """Get available genres, years, and artists from Jellyfin"""

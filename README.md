@@ -20,12 +20,17 @@
 - **Multiple Playlist Types** - Top Tracks, Discovery Mix, Recent Favorites, Genre Mix
 - **User Selection** - Choose specific users or generate for all users
 - **Listening Analytics** - Based on play counts, favorites, and recent activity
+- **Plugin Requirement** - Requires [Jellyfin Playback Reporting Plugin](https://github.com/jellyfin/jellyfin-plugin-playbackreporting) for listening statistics
 
 ### 🎨 Cover Art System
-- **Custom Cover Art** - Support for personalized playlist covers with fallback system
+- **Multi-Tier Cover Art System** - Comprehensive fallback system for all playlist types
+- **Custom Generated Covers** - "This is [Artist]" text overlays on artist folder images
 - **Spotify Integration** - Automatic artist playlist cover downloads from Spotify
+- **Predefined Custom Covers** - Manual cover art for specific playlists
 - **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.jpg")
-- **Extension Preservation** - Maintains original image formats (PNG, JPG, WebP)
+- **Artist Folder Integration** - Uses existing folder.jpg from music directories
+- **Unicode Support** - Handles special characters in artist names (alt‐J, Sigur Rós, etc.)
+- **Extension Preservation** - Maintains original image formats (PNG, JPG)
 
 ### 🌐 Modern Web Interface
 - **Beautiful Dark Theme** - Modern, responsive design
@@ -47,93 +52,76 @@
 - **Unraid Support** - Dedicated docker-compose configuration
 - **Comprehensive Logging** - Detailed operation tracking and debugging
 
-## 🚀 Quick Start
+## 🔒 Web UI Security
 
-### Prerequisites
+JellyJams includes optional basic authentication to protect the web interface:
 
-- Docker and Docker Compose installed
-- Jellyfin media server with music library
-- Jellyfin API key with appropriate permissions
+### Basic Authentication
+- **Default**: Disabled for easy setup
+- **Configuration**: Via environment variables or web UI settings
+- **Override**: Environment variables take precedence over web UI settings
 
-### Installation
+#### Environment Variables
+```bash
+WEBUI_BASIC_AUTH_ENABLED=true
+WEBUI_BASIC_AUTH_USERNAME=your_username
+WEBUI_BASIC_AUTH_PASSWORD=your_password
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/jellyjams.git
-   cd jellyjams
-   ```
+#### Web UI Configuration
+1. Navigate to **Settings** → **Advanced Settings**
+2. Enable "Basic Authentication"
+3. Set username and password
+4. Save settings
 
-2. **Create environment file:**
-   ```bash
-   cp .env.example .env
-   ```
+**Note**: Environment variables override web UI settings, allowing administrators to enforce authentication policies.
 
-3. **Edit `.env` with your settings:**
-   ```bash
-   # Essential container settings
-   JELLYFIN_URL=https://your-jellyfin-server.com
-   JELLYFIN_API_KEY=your_jellyfin_api_key_here
-   ```
+## 🎨 Cover Art System
+- **Multi-Tier Cover Art System** - Comprehensive fallback system for all playlist types
+- **Custom Generated Covers** - "This is [Artist]" text overlays on artist folder images
+- **Spotify Integration** - Automatic artist playlist cover downloads from Spotify
+- **Predefined Custom Covers** - Manual cover art for specific playlists
+- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.jpg")
+- **Artist Folder Integration** - Uses existing folder.jpg from music directories
+- **Unicode Support** - Handles special characters in artist names (alt‐J, Sigur Rós, etc.)
+- **Extension Preservation** - Maintains original image formats (PNG, JPG)
 
-4. **Start the container:**
-   ```bash
-   docker-compose up -d
-   ```
+### 🎯 Cover Art Priority System
+1. **Custom Generated Covers** (Artist playlists)
+2. **Spotify Cover Art** (Artist playlists, if enabled)
+3. **Predefined Custom Covers** (Manual covers)
+4. **Artist Folder Fallback** (Uses existing folder.jpg)
+5. **Generic Fallbacks** (Type-specific defaults)
 
-5. **Access the Web UI:**
-   Open http://localhost:5000 in your browser
+#### 🖼️ Custom Generated Covers
+For artist playlists, JellyJams automatically generates professional "This is [Artist]" covers:
+- Uses artist's existing folder.jpg as background
+- Adds stylized text overlay with adaptive colors
+- Handles Unicode characters (alt‐J, Sigur Rós, Mötley Crüe)
+- High-quality PNG output with text shadows
+- Automatic brightness analysis for optimal text contrast
 
-## 🎛️ Configuration
-
-> 📖 **For comprehensive configuration documentation, see [SETTINGS.md](SETTINGS.md)**
-
-### Quick Configuration
-
-JellyJams offers two ways to configure settings:
-1. **Environment Variables** - Set in `.env` file or Docker environment
-2. **Web UI Settings** - Override environment variables with persistent web-based configuration
-
-### Essential Environment Variables
-
-| Variable | Description | Default |
-| `JELLYFIN_URL` | Your Jellyfin server URL | Required |
-| `JELLYFIN_API_KEY` | Jellyfin API key | Required |
-| `PLAYLIST_FOLDER` | Container playlist directory | `/app/playlists` |
-| `ENABLE_WEB_UI` | Enable web interface | `true` |
-| `WEB_PORT` | Web UI port | `5000` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-| `GENERATION_INTERVAL` | Hours between auto-generation | `24` |
-| `MAX_TRACKS_PER_PLAYLIST` | Maximum tracks per playlist | `100` |
-| `MIN_TRACKS_PER_PLAYLIST` | Minimum tracks per playlist | `5` |
-| `EXCLUDED_GENRES` | Comma-separated genres to exclude | `` |
-| `SHUFFLE_TRACKS` | Shuffle tracks in playlists | `true` |
-| `PLAYLIST_TYPES` | Types to generate (Genre,Year,Artist) | `Genre,Year,Artist` |
-
-### Web UI Configuration
-
-The web UI allows you to override environment variables with persistent settings:
-
-- **Jellyfin Connection** - Test and configure API connection
-- **Playlist Limits** - Set min/max tracks per playlist
-- **Genre Exclusions** - Select genres to exclude from generation
-- **Playlist Types** - Choose which types to generate
-- **Scheduling** - Configure automatic generation interval
-
-## 🚀 Advanced Features
-
-### 👤 Personalized Playlists
-JellyJams can generate private, user-specific playlists based on individual listening habits:
-- **Top Tracks** - Most played songs for each user
-- **Discovery Mix** - Personalized recommendations with diversity controls
-- **Recent Favorites** - Recently played and favorited tracks
-- **Genre Mix** - Mixed playlist from user's preferred genres
-
-### 🎨 Custom Cover Art
-Support for custom playlist covers with intelligent fallback system:
-- Place images in your cover directory (mapped to `/app/cover`)
+#### 📁 Predefined Custom Covers
+Place custom images in your cover directory (mapped to `/app/cover`):
 - Exact playlist name matching: `"Top Tracks - Jonas.jpg"`
 - Generic fallbacks: `"Top Tracks - all.png"`
-- Automatic Spotify cover art for artist playlists
+- Decade-specific covers: `"Back to the 1990s.jpg"`
+- Genre-specific covers: `"Jazz Radio.jpg"`
+
+#### 🎵 Artist Folder Integration
+JellyJams can use existing cover art from your music library:
+- Searches for `folder.jpg`, `cover.jpg`, `artist.jpg` in artist directories
+- Supports multiple music directory paths (`/app/music`, `/music`, `/media`, etc.)
+- Case-insensitive artist folder matching
+- Multiple image format support (JPG, PNG, WebP)
+
+#### 🔄 Update Covers Feature
+Refresh cover art for existing playlists without regenerating:
+- **Web UI Button**: "Update Covers" on playlists page
+- **Multi-tier Processing**: Tries all cover art sources in priority order
+- **Progress Tracking**: Real-time feedback with statistics
+- **Selective Updates**: Focuses on artist playlists for efficiency
+- **Error Handling**: Graceful fallbacks with detailed logging
 
 ### 🎯 Discovery Playlist Controls
 Fine-tune discovery playlists for better variety:
@@ -326,5 +314,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/jonasmore/jellyjams/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/jonasmore/jellyjams/discussions)
-
-
