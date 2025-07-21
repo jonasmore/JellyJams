@@ -1568,6 +1568,43 @@ class PlaylistGenerator:
         self.logger.debug(f"No cover art files found in: {directory_path}")
         return None
     
+    def _sanitize_text_for_font(self, text: str) -> str:
+        """Sanitize text to handle Unicode characters that cause font encoding errors"""
+        try:
+            # Replace common Unicode characters that cause font issues
+            replacements = {
+                '\u2010': '-',  # Unicode hyphen → ASCII hyphen
+                '\u2011': '-',  # Non-breaking hyphen → ASCII hyphen
+                '\u2012': '-',  # Figure dash → ASCII hyphen
+                '\u2013': '-',  # En dash → ASCII hyphen
+                '\u2014': '-',  # Em dash → ASCII hyphen
+                '\u2015': '-',  # Horizontal bar → ASCII hyphen
+                '\u2018': "'", # Left single quotation mark → ASCII apostrophe
+                '\u2019': "'", # Right single quotation mark → ASCII apostrophe
+                '\u201C': '"',  # Left double quotation mark → ASCII quote
+                '\u201D': '"',  # Right double quotation mark → ASCII quote
+                '\u00A0': ' ',  # Non-breaking space → regular space
+            }
+            
+            sanitized = text
+            for unicode_char, replacement in replacements.items():
+                sanitized = sanitized.replace(unicode_char, replacement)
+            
+            # Try to encode as latin-1 to catch any remaining problematic characters
+            try:
+                sanitized.encode('latin-1')
+                return sanitized
+            except UnicodeEncodeError:
+                # If still problematic, remove non-ASCII characters
+                sanitized = ''.join(char for char in sanitized if ord(char) < 128)
+                self.logger.warning(f"Removed non-ASCII characters from artist name: {text} → {sanitized}")
+                return sanitized
+                
+        except Exception as e:
+            self.logger.warning(f"Error sanitizing text '{text}': {e}")
+            # Fallback: remove all non-ASCII characters
+            return ''.join(char for char in text if ord(char) < 128)
+    
     def _generate_custom_cover_art(self, source_image: Path, artist_name: str, destination: Path) -> bool:
         """Generate custom cover art with 'This is <artist>' text overlay using multi-stage scaling approach"""
         try:
@@ -1647,10 +1684,15 @@ class PlaylistGenerator:
                 # Determine text color based on background brightness
                 text_color = self._get_adaptive_text_color(final_img)
                 
+                # Define the text lines for "This is [Artist]" overlay
+                line1 = "This is"
+                # Sanitize artist name to handle Unicode characters that fonts can't render
+                line2 = self._sanitize_text_for_font(artist_name)
+                
                 # Calculate text dimensions on large canvas
                 if font:
-                    bbox1 = text_draw.textbbox((0, 0), line1, font=font)
-                    bbox2 = text_draw.textbbox((0, 0), line2, font=font)
+                    bbox1 = draw.textbbox((0, 0), line1, font=font)
+                    bbox2 = draw.textbbox((0, 0), line2, font=font)
                     
                     line1_width = bbox1[2] - bbox1[0]
                     line1_height = bbox1[3] - bbox1[1]
@@ -1665,6 +1707,11 @@ class PlaylistGenerator:
                     line2_height = 80
                     total_height = 200
                     max_width = 600
+                
+                # Create a large text canvas for high-quality text rendering
+                text_canvas_size = 1000  # Large canvas for high-quality text
+                text_img = Image.new('RGBA', (text_canvas_size, text_canvas_size), (0, 0, 0, 0))
+                text_draw = ImageDraw.Draw(text_img)
                 
                 # Position text on large canvas (centered for now, we'll position the final result)
                 text_x = 50  # Left margin on large canvas

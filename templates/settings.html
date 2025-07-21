@@ -395,7 +395,8 @@
 // Initialize excluded genres from server-side data
 let excludedGenres = [];
 try {
-    excludedGenres = {{ settings.excluded_genres | tojson | safe }};
+    const genresData = '{{ settings.excluded_genres | tojson | safe }}';
+    excludedGenres = genresData ? JSON.parse(genresData) : [];
 } catch (e) {
     console.warn('Failed to parse excluded genres:', e);
     excludedGenres = [];
@@ -405,7 +406,8 @@ let availableGenresLoaded = false;
 // Initialize excluded artists from server-side data
 let excludedArtists = [];
 try {
-    excludedArtists = {{ settings.excluded_artists | tojson | safe }};
+    const artistsData = '{{ settings.excluded_artists | tojson | safe }}';
+    excludedArtists = artistsData ? JSON.parse(artistsData) : [];
 } catch (e) {
     console.warn('Failed to parse excluded artists:', e);
     excludedArtists = [];
