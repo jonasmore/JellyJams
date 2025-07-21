@@ -1,6 +1,6 @@
 # JellyJams 🎵
 <p align="center">
-  <img src="jellyjams.jpg" alt="JellyJams Logo" />
+  <img src="jellyjams.jpeg" alt="JellyJams Logo" />
 </p>
 
 **JellyJams** is a modern, standalone Docker container that automatically generates music playlists for your Jellyfin media server using the Jellyfin REST API. It features a beautiful dark-themed web UI for easy configuration and management.
