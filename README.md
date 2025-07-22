@@ -316,6 +316,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Bootstrap](https://getbootstrap.com/) - UI framework
 - [Font Awesome](https://fontawesome.com/) - Icons
 - [Inter Font](https://rsms.me/inter/) - Typography
+- [Unsplash](https://unsplash.com/license) - Cover Images
 
 ## 📞 Support
 
