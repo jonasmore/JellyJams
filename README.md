@@ -12,12 +12,21 @@
 
 ![JellyJams Example](example.jpg)
 
+## 🚧 Alpha Status & Feedback
+JellyJams is currently in alpha. It's working well for me, but as my first coding project, I'm sure there are improvements to be made!
+I'd love your feedback on:
+- Installation experience
+- Feature requests
+- Performance with large libraries
+- UI/UX suggestions
+
+
 ## 🐳 Quick Start
 
 Get JellyJams running in minutes with Docker:
 
 ```bash
-docker pull jonasmore/jellyjams
+docker run -p 5000:5000 jonasmore/jellyjams
 ```
 
 📦 **Docker Hub**: [jonasmore/jellyjams](https://hub.docker.com/r/jonasmore/jellyjams)
@@ -156,13 +165,13 @@ JellyJams creates playlists in the following format:
 
 ```
 📁 Playlists/
-├── JellyJams Genre: Rock/
+├── Rock Radio/
 │   └── playlist.xml
-├── JellyJams Genre: Jazz/
+├── Jazz Radio/
 │   └── playlist.xml
-├── JellyJams Year: 2023/
+├── Back to the 1970s/
 │   └── playlist.xml
-└── JellyJams Artist: The Beatles/
+└── This is The Beatles!/
     └── playlist.xml
 ```
 
@@ -204,6 +213,8 @@ services:
       - jellyjams_playlists:/app/playlists
       - jellyjams_logs:/app/logs
       - jellyjams_config:/app/config
+      # Music directory for cover art generation (adjust path for your system)
+      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
     ports:
       - "5000:5000"
     restart: unless-stopped
@@ -223,6 +234,8 @@ volumes:
   - /mnt/user/appdata/jellyjams/playlists:/app/playlists
   - /mnt/user/appdata/jellyjams/logs:/app/logs
   - /mnt/user/appdata/jellyjams/config:/app/config
+  # Music directory for cover art generation (adjust path for your system)
+  - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
 ```
 
 ## 🔧 API Integration
@@ -234,13 +247,6 @@ JellyJams uses the Jellyfin REST API to:
 - Handle semicolon-separated genre strings
 - Test connection status
 - Retrieve audio item details
-
-### Required API Permissions
-
-Your Jellyfin API key needs access to:
-- Read media library
-- Access audio items
-- Read metadata
 
 ## 🎨 Web UI Features
 
@@ -262,33 +268,13 @@ Your Jellyfin API key needs access to:
 - Delete unwanted playlists
 - Preview playlist contents
 
-### Logs
+### Logs (a bit buggy)
 - Real-time log viewing
 - Log filtering and search
 - Download log files
 - Auto-refresh capability
 
 ## 🛠️ Development
-
-### Local Development
-
-1. **Clone and setup:**
-   ```bash
-   git clone https://github.com/yourusername/jellyjams.git
-   cd jellyjams
-   cp .env.example .env
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run locally:**
-   ```bash
-   python webapp.py  # Web UI
-   python vibecodeplugin.py  # Playlist generator
-   ```
 
 ### Project Structure
 
@@ -333,3 +319,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/jonasmore/jellyjams/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/jonasmore/jellyjams/discussions)
+- 🗒️ **Forum Post**: [Jellyfin Forum](https://forum.jellyfin.org/t-jellyjams-automatic-playlist-generator-for-jellyfin-alpha)
