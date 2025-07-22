@@ -7,15 +7,26 @@
 
 ![JellyJams Web UI](https://img.shields.io/badge/Web%20UI-Modern%20Dark%20Theme-8b5cf6)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ed)
+![Docker Pulls](https://img.shields.io/docker/pulls/jonasmore/jellyjams?color=2496ed)
 ![Jellyfin](https://img.shields.io/badge/Jellyfin-API%20Integration-00a4dc)
 
 ![JellyJams Example](example.jpg)
 
+## 🐳 Quick Start
+
+Get JellyJams running in minutes with Docker:
+
+```bash
+docker pull jonasmore/jellyjams
+```
+
+📦 **Docker Hub**: [jonasmore/jellyjams](https://hub.docker.com/r/jonasmore/jellyjams)
 
 ## ✨ Features
 
 ### 🎵 Playlist Generation
 - **Multiple Playlist Types** - Genre, Year, Artist, and Personalized playlists
+- **Smart Genre Grouping** - Groups similar genres into main categories to avoid overly specific playlists (e.g., "Alternative Rock", "Indie Rock", "Classic Rock" → "Rock Radio")
 - **Smart Naming** - Clean playlist names ("Rock Radio", "Back to 1980", "This is Beatles!")
 - **Artist Diversity Control** - Configurable minimum artist diversity for genre/year playlists
 - **Discovery Playlists** - Personalized recommendations with diversity controls (max songs per album/artist)

@@ -16,6 +16,14 @@ This document provides comprehensive documentation for all JellyJams configurati
 - [Docker Volume Configuration](#docker-volume-configuration)
 - [Examples](#examples)
 
+## 🐳 Docker Hub
+
+**Official Docker Image**: [jonasmore/jellyjams](https://hub.docker.com/r/jonasmore/jellyjams)
+
+```bash
+docker pull jonasmore/jellyjams:latest
+```
+
 ## 🔧 Configuration Methods
 
 JellyJams supports two configuration methods:
@@ -49,6 +57,27 @@ JELLYFIN_API_KEY=your_32_character_api_key_here
 | `LOG_LEVEL` | Logging verbosity | No | `INFO` |
 
 ## 🎵 Playlist Generation Settings
+
+### Smart Genre Grouping
+
+JellyJams automatically groups similar genres into main categories to avoid creating too many overly specific playlists. This ensures a cleaner, more manageable playlist collection.
+
+#### Genre Mapping Examples
+| Specific Genres | Grouped As |
+|----------------|------------|
+| Alternative Rock, Indie Rock, Classic Rock, Hard Rock | **Rock Radio** |
+| Hip Hop, Rap, Trap, Gangsta Rap | **Hip Hop Radio** |
+| House, Techno, Trance, EDM, Electronic | **Electronic Radio** |
+| Country, Country Rock, Bluegrass, Folk Country | **Country Radio** |
+| Jazz, Smooth Jazz, Bebop, Jazz Fusion | **Jazz Radio** |
+| Classical, Baroque, Romantic, Symphony | **Classical Radio** |
+| Pop, Dance Pop, Synth Pop, Indie Pop | **Pop Radio** |
+
+#### Benefits
+- **Cleaner Organization**: Fewer, more meaningful playlists
+- **Better Discovery**: Broader genre coverage in each playlist
+- **Reduced Clutter**: Avoids dozens of micro-genre playlists
+- **Consistent Naming**: Predictable "[Genre] Radio" format
 
 ### Basic Playlist Control
 | Variable | Description | Default | Options |

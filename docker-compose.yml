@@ -1,6 +1,6 @@
 services:
   jellyjams:
-    build: .
+    image: jonasmore/jellyjams:latest
     container_name: jellyjams
     environment:
       # Essential container settings (not configurable via web UI)
