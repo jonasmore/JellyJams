@@ -4,6 +4,23 @@
 
 echo "🎵 Starting JellyJams Generator..."
 
+# Initialize default cover files if they don't exist
+echo "🖼️ Checking for default cover files..."
+if [ -d "/app/default_cover" ] && [ "$(ls -A /app/default_cover 2>/dev/null)" ]; then
+    for file in /app/default_cover/*; do
+        filename=$(basename "$file")
+        if [ ! -f "/app/cover/$filename" ]; then
+            echo "📁 Copying default cover: $filename"
+            cp "$file" "/app/cover/"
+        else
+            echo "✅ Custom cover exists, skipping: $filename"
+        fi
+    done
+    echo "🎨 Cover file initialization complete"
+else
+    echo "⚠️ No default cover files found in /app/default_cover"
+fi
+
 # Set log level to DEBUG for comprehensive logging
 export LOG_LEVEL=DEBUG
 

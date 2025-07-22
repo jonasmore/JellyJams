@@ -10,8 +10,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Create directories for playlists, logs, and config
-RUN mkdir -p /app/playlists /app/logs /app/config
+# Create directories for playlists, logs, config, and cover
+RUN mkdir -p /app/playlists /app/logs /app/config /app/cover
+
+# Copy default cover files to a temporary location
+COPY data/cover /app/default_cover
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
