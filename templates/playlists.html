@@ -91,7 +91,7 @@
                 </div>
                 <!-- Cover Art Section -->
                 <div class="playlist-cover-container" style="position: relative; height: 200px; overflow: hidden;">
-                    <img src="/api/cover/{{ playlist.name | urlencode }}" 
+                    <img src="{{ url_for('api_cover_art', playlist_name=playlist.name) }}" 
                          alt="{{ playlist.name }} cover" 
                          class="playlist-cover-image" 
                          style="width: 100%; height: 100%; object-fit: cover; background-color: #f8f9fa;"

@@ -674,6 +674,10 @@ def api_cover_art(playlist_name):
     """
     try:
         playlist_dir = Path(config.playlist_folder) / playlist_name
+        logger.debug(f"Cover request for '{playlist_name}', resolved dir: {playlist_dir}")
+        if not playlist_dir.exists():
+            logger.debug(f"Playlist directory does not exist: {playlist_dir}")
+            return '', 404
         
         # Search order: folder.* first (what generator writes), then cover.*
         names = ['folder', 'cover']
@@ -686,13 +690,22 @@ def api_cover_art(playlist_name):
             '.bmp': 'image/bmp'
         }
         
+        try:
+            existing = [p.name for p in playlist_dir.iterdir()]
+            logger.debug(f"Existing files in dir: {existing}")
+        except Exception as e:
+            logger.debug(f"Failed to list directory {playlist_dir}: {e}")
+            existing = []
+
         for base in names:
             for ext in exts:
                 candidate = playlist_dir / f"{base}{ext}"
+                logger.debug(f"Checking candidate cover: {candidate}")
                 if candidate.exists():
                     return send_file(str(candidate), mimetype=mimetypes.get(ext, 'application/octet-stream'))
         
         # Not found
+        logger.debug(f"No cover image found for '{playlist_name}' in {playlist_dir}")
         return '', 404
             
     except Exception as e:
