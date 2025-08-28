@@ -414,7 +414,7 @@ def api_users():
 def logs():
     """View logs"""
     try:
-        log_file = '/app/logs/vibecodeplugin.log'
+        log_file = '/app/logs/jellyjams.log'
         if Path(log_file).exists():
             with open(log_file, 'r') as f:
                 log_content = f.read()
