@@ -5,6 +5,7 @@ Generates music playlists using Jellyfin API and saves them as XML files
 """
 
 import os
+import unicodedata
 import sys
 import time
 import json
@@ -27,6 +28,34 @@ except ImportError:
     PIL_AVAILABLE = False
 
 # Configuration
+
+# --- Name normalization helper ---
+def normalize_name(s: str) -> str:
+    """Normalize playlist/artist names to avoid Unicode punctuation mismatches.
+    Converts curly quotes/apostrophes and dash variants to ASCII, applies NFKC, trims.
+    """
+    if not s:
+        return ''
+    # Normalize compatibility forms (e.g., fullwidth quotes) and compose
+    s = unicodedata.normalize('NFKC', s)
+    # Replace common Unicode quotes/apostrophes with ASCII
+    quote_map = {
+        '\u2018': "'",  # left single quotation mark
+        '\u2019': "'",  # right single quotation mark (Guns N’ Roses)
+        '\u201B': "'",  # single high-reversed-9 quotation mark
+        '\u2032': "'",  # prime
+        '\u02BC': "'",  # modifier letter apostrophe
+        '\uFF07': "'",  # fullwidth apostrophe
+        '\u201C': '"',   # left double quotation mark
+        '\u201D': '"',   # right double quotation mark
+        '\uFF02': '"',   # fullwidth quotation mark
+    }
+    for k, v in quote_map.items():
+        s = s.replace(k, v)
+    # Replace dash variants with ASCII hyphen
+    for dash in ['\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015']:
+        s = s.replace(dash, '-')
+    return s.strip()
 class Config:
     def __init__(self):
         # Load environment variables first (as defaults)
@@ -929,9 +958,10 @@ class JellyfinAPI:
             data = response.json()
             playlists = data.get('Items', [])
             
-            # Look for exact name match
+            # Look for exact name match (normalize Unicode quotes/apostrophes)
             for playlist in playlists:
-                if playlist.get('Name', '').lower() == name.lower():
+                pl_name = playlist.get('Name', '')
+                if normalize_name(pl_name).lower() == normalize_name(name).lower():
                     return playlist
             
             return None
@@ -1931,25 +1961,14 @@ class PlaylistGenerator:
         # Log original name for debugging
         self.logger.debug(f"Original playlist name: {repr(name)}")
         
-        # Remove null bytes and other problematic characters
-        sanitized = name.replace('\x00', '').replace('\0', '')
+        # Normalize Unicode punctuation and remove null bytes
+        sanitized = normalize_name(name)
+        sanitized = sanitized.replace('\x00', '').replace('\0', '')
 
         # Normalize different types of hyphens and dashes to a standard hyphen
         hyphen_variants = ['\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015']
         for variant in hyphen_variants:
             sanitized = sanitized.replace(variant, '-')
-        
-        # Remove other control characters
-        import re
-        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', sanitized)
-        
-        # Replace problematic filesystem characters
-        problematic_chars = ['<', '>', ':', '"', '|', '?', '*', '/', '\\']
-        for char in problematic_chars:
-            sanitized = sanitized.replace(char, '_')
-        
-        # Clean up multiple spaces and trim
-        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
         
         # Ensure it's not empty after sanitization
         if not sanitized:
@@ -1958,7 +1977,7 @@ class PlaylistGenerator:
         # Log sanitized name if it changed
         if sanitized != name:
             self.logger.info(f"🧹 Sanitized playlist name: '{name}' -> '{sanitized}'")
-        
+    
         return sanitized
     
     def save_playlist(self, playlist_type: str, name: str, tracks: List[Dict], user_id: str = None):
@@ -2001,8 +2020,10 @@ class PlaylistGenerator:
             self.logger.info(f"Creating {privacy_text} {playlist_type} playlist: {sanitized_name} with {len(track_ids)} tracks")
             
             # Check if playlist already exists and delete it (use original name for API calls)
-            self.logger.info(f"Checking for existing playlist: {name}")
-            existing_playlist = self.jellyfin.get_playlist_by_name(name, user_id)
+            # Use normalized name for API lookups/creation to avoid Unicode duplicates (e.g., ’ vs ')
+            api_name = normalize_name(name)
+            self.logger.info(f"Checking for existing playlist: {api_name}")
+            existing_playlist = self.jellyfin.get_playlist_by_name(api_name, user_id)
             if existing_playlist:
                 self.logger.info(f"Playlist '{name}' already exists, attempting to delete old version with ID: {existing_playlist.get('Id')}")
                 delete_success = self.jellyfin.delete_playlist(existing_playlist['Id'])
@@ -2016,8 +2037,8 @@ class PlaylistGenerator:
         
             # Create the playlist via API with proper privacy settings (use original name for API)
             self.logger.info(f"🔨 Creating new playlist via Jellyfin API...")
-            self.logger.debug(f"API call parameters: name={repr(name)}, track_count={len(track_ids)}, user_id={user_id}, is_public={is_public}")
-            result = self.jellyfin.create_playlist(name, track_ids, user_id, is_public)
+            self.logger.debug(f"API call parameters: name={repr(api_name)}, track_count={len(track_ids)}, user_id={user_id}, is_public={is_public}")
+            result = self.jellyfin.create_playlist(api_name, track_ids, user_id, is_public)
             
             if result['success']:
                 self.logger.info(f"✅ Successfully created {privacy_text} playlist '{sanitized_name}' with {result['track_count']} tracks")
