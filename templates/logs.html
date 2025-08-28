@@ -129,7 +129,7 @@ $(document).ready(function() {
 });
 
 function startAutoRefresh() {
-    autoRefreshInterval = setInterval(refreshLogs, 10000); // Refresh every 10 seconds
+    autoRefreshInterval = setInterval(refreshLogs, 2000); // Refresh every 2 seconds
 }
 
 function stopAutoRefresh() {
@@ -141,33 +141,22 @@ function stopAutoRefresh() {
 function refreshLogs() {
     const button = $('button:contains("Refresh")');
     const originalText = button.html();
-    
-    // Don't show spinner for auto-refresh
-    if (!$('#autoRefresh').is(':checked')) {
-        showSpinner(button);
-    }
-    
-    $.get('/logs', function(data) {
-        // Extract log content from the response
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(data, 'text/html');
-        const logContent = doc.getElementById('logContent');
-        
-        if (logContent) {
-            $('#logContent').text(logContent.textContent);
+    const isAuto = $('#autoRefresh').is(':checked');
+    if (!isAuto) { showSpinner(button); }
+
+    $.getJSON('/api/logs_tail?lines=100')
+        .done(function(resp) {
+            const content = resp && resp.lines ? resp.lines : '';
+            $('#logContent').text(content);
             filterLogs(currentFilter);
             scrollToBottom();
-        }
-        
-        if (!$('#autoRefresh').is(':checked')) {
-            hideSpinner(button, originalText);
-        }
-    }).fail(function() {
-        if (!$('#autoRefresh').is(':checked')) {
-            hideSpinner(button, originalText);
-            showAlert('Error refreshing logs.', 'danger');
-        }
-    });
+        })
+        .fail(function() {
+            if (!isAuto) { showAlert('Error refreshing logs.', 'danger'); }
+        })
+        .always(function() {
+            if (!isAuto) { hideSpinner(button, originalText); }
+        });
 }
 
 function filterLogs(level) {

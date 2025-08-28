@@ -11,6 +11,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+from collections import deque
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -453,18 +454,49 @@ def api_users():
 @app.route('/logs')
 @requires_auth
 def logs():
-    """View logs"""
-    try:
-        log_file = '/app/logs/jellyjams.log'
-        if Path(log_file).exists():
-            with open(log_file, 'r') as f:
-                log_content = f.read()
-        else:
-            log_content = "No logs available"
-    except Exception as e:
-        log_content = f"Error reading logs: {e}"
-    
+    """Logs page - initial render shows last 100 lines"""
+    def read_last_lines(path: str, n: int = 100) -> str:
+        try:
+            if not Path(path).exists():
+                return "No logs available"
+            # Efficient tail using deque
+            with open(path, 'r', errors='ignore') as f:
+                dq = deque(f, maxlen=n)
+                return ''.join(dq)
+        except Exception as e:
+            return f"Error reading logs: {e}"
+
+    log_file = '/app/logs/jellyjams.log'
+    log_content = read_last_lines(log_file, 100)
     return render_template('logs.html', log_content=log_content)
+
+@app.route('/api/logs_tail', methods=['GET'])
+@requires_auth
+def api_logs_tail():
+    """API: return the last N lines of the main log file as plain text."""
+    try:
+        lines = int(request.args.get('lines', 100))
+    except (TypeError, ValueError):
+        lines = 100
+
+    log_file = '/app/logs/jellyjams.log'
+
+    def read_last_lines(path: str, n: int) -> str:
+        try:
+            if not Path(path).exists():
+                return ""
+            with open(path, 'r', errors='ignore') as f:
+                dq = deque(f, maxlen=n)
+                return ''.join(dq)
+        except Exception as e:
+            logger.error(f"Error tailing logs: {e}")
+            return ""
+
+    content = read_last_lines(log_file, lines)
+    return jsonify({
+        'lines': content,
+        'line_count': len(content.split('\n')) if content else 0
+    })
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 @requires_auth
