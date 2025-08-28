@@ -76,6 +76,7 @@ class ConfigManager:
             'log_level': config.log_level,
             'min_artist_diversity': getattr(config, 'min_artist_diversity', 5),
             'min_albums_per_artist': getattr(config, 'min_albums_per_artist', 2),
+            'min_albums_per_decade': getattr(config, 'min_albums_per_decade', 3),
             'spotify_client_id': getattr(config, 'spotify_client_id', ''),
             'spotify_client_secret': getattr(config, 'spotify_client_secret', ''),
             'spotify_cover_art_enabled': getattr(config, 'spotify_cover_art_enabled', False),
@@ -121,22 +122,52 @@ class ConfigManager:
     def apply_settings(self, settings: Dict):
         """Apply settings to global config"""
         config.jellyfin_url = settings.get('jellyfin_url', config.jellyfin_url)
-        config.max_tracks_per_playlist = settings.get('max_tracks_per_playlist', config.max_tracks_per_playlist)
-        config.min_tracks_per_playlist = settings.get('min_tracks_per_playlist', config.min_tracks_per_playlist)
+        
+        # Ensure numeric settings are cast to integers (POSTed JSON may contain strings)
+        try:
+            config.max_tracks_per_playlist = int(settings.get('max_tracks_per_playlist', config.max_tracks_per_playlist))
+        except (TypeError, ValueError):
+            # Leave existing value if casting fails
+            pass
+        try:
+            config.min_tracks_per_playlist = int(settings.get('min_tracks_per_playlist', config.min_tracks_per_playlist))
+        except (TypeError, ValueError):
+            pass
+        
         config.excluded_genres = settings.get('excluded_genres', config.excluded_genres)
         config.excluded_artists = settings.get('excluded_artists', getattr(config, 'excluded_artists', []))
         config.shuffle_tracks = settings.get('shuffle_tracks', config.shuffle_tracks)
         config.playlist_types = settings.get('playlist_types', config.playlist_types)
-        config.generation_interval = settings.get('generation_interval', config.generation_interval)
+        
+        # Ensure numeric settings are cast to integers (POSTed JSON may contain strings)
+        try:
+            config.generation_interval = int(settings.get('generation_interval', config.generation_interval))
+        except (TypeError, ValueError):
+            pass
+        
         config.log_level = settings.get('log_level', config.log_level)
-        config.min_artist_diversity = settings.get('min_artist_diversity', getattr(config, 'min_artist_diversity', 5))
+        
+        # Ensure numeric settings are cast to integers (POSTed JSON may contain strings)
+        try:
+            config.min_artist_diversity = int(settings.get('min_artist_diversity', getattr(config, 'min_artist_diversity', 5)))
+        except (TypeError, ValueError):
+            pass
+        
         config.spotify_client_id = settings.get('spotify_client_id', getattr(config, 'spotify_client_id', ''))
         config.spotify_client_secret = settings.get('spotify_client_secret', getattr(config, 'spotify_client_secret', ''))
         config.spotify_cover_art_enabled = settings.get('spotify_cover_art_enabled', getattr(config, 'spotify_cover_art_enabled', False))
         
         # Apply playlist generation settings
-        config.min_albums_per_artist = settings.get('min_albums_per_artist', getattr(config, 'min_albums_per_artist', 2))
-        config.min_albums_per_decade = settings.get('min_albums_per_decade', getattr(config, 'min_albums_per_decade', 3))
+        
+        # Ensure numeric settings are cast to integers (POSTed JSON may contain strings)
+        try:
+            config.min_albums_per_artist = int(settings.get('min_albums_per_artist', getattr(config, 'min_albums_per_artist', 2)))
+        except (TypeError, ValueError):
+            pass
+        try:
+            config.min_albums_per_decade = int(settings.get('min_albums_per_decade', getattr(config, 'min_albums_per_decade', 3)))
+        except (TypeError, ValueError):
+            pass
         
         # Apply scheduling settings
         config.auto_generate_on_startup = settings.get('auto_generate_on_startup', getattr(config, 'auto_generate_on_startup', False))
