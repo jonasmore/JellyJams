@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 import base64
 from vibecodeplugin import Config, PlaylistGenerator, JellyfinAPI, setup_logging, SpotifyClient
@@ -41,6 +41,16 @@ logging.getLogger('requests').setLevel(logging.WARNING)
 logger = logging.getLogger('JellyJams.WebUI')
 logger.setLevel(logging.DEBUG)
 logger.info("🌐 JellyJams Web UI logging initialized")
+
+# Serve logo asset
+@app.route('/assets/logo.png')
+def logo():
+    """Serve the application logo"""
+    logo_path = Path(__file__).parent / 'jellyjams-transparent.png'
+    if logo_path.exists():
+        return send_file(str(logo_path), mimetype='image/png')
+    # Fallback: 404 if not found
+    return '', 404
 
 class ConfigManager:
     def __init__(self):
@@ -659,18 +669,31 @@ def api_delete_all_playlists():
 @app.route('/api/cover/<path:playlist_name>', methods=['GET'])
 @requires_auth
 def api_cover_art(playlist_name):
-    """API endpoint to serve cover art for playlists"""
+    """API endpoint to serve cover art for playlists.
+    Supports both 'folder.*' and 'cover.*' with common image extensions.
+    """
     try:
-        from flask import send_file
-        
         playlist_dir = Path(config.playlist_folder) / playlist_name
-        cover_path = playlist_dir / 'cover.jpg'
         
-        if cover_path.exists():
-            return send_file(str(cover_path), mimetype='image/jpeg')
-        else:
-            # Return a default placeholder or 404
-            return '', 404
+        # Search order: folder.* first (what generator writes), then cover.*
+        names = ['folder', 'cover']
+        exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+        mimetypes = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp'
+        }
+        
+        for base in names:
+            for ext in exts:
+                candidate = playlist_dir / f"{base}{ext}"
+                if candidate.exists():
+                    return send_file(str(candidate), mimetype=mimetypes.get(ext, 'application/octet-stream'))
+        
+        # Not found
+        return '', 404
             
     except Exception as e:
         logger.error(f"Error serving cover art for {playlist_name}: {e}")

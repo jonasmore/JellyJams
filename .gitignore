@@ -58,3 +58,7 @@ config/settings.json
 
 # Docker
 .dockerignore
+
+# Local compose files (not for source control)
+docker-compose-unraid-local.yml
+docker-compose.*.local.yml

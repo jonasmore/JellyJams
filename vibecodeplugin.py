@@ -1089,6 +1089,12 @@ class PlaylistGenerator:
             import shutil
             shutil.copy2(source_image, destination_image)
             
+            # Ensure cover art is world-readable on host mounts
+            try:
+                os.chmod(destination_image, 0o664)
+            except Exception as chmod_err:
+                self.logger.debug(f"chmod failed for {destination_image}: {chmod_err}")
+            
             self.logger.info(f"Successfully copied custom cover art: {source_image} -> {destination_image}")
             return True
             
@@ -1097,7 +1103,7 @@ class PlaylistGenerator:
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False
-
+    
     def _apply_decade_cover_art(self, playlist_name: str, playlist_dir: Path) -> bool:
         """Apply decade-specific cover art for decade playlists with fallback system"""
         try:
@@ -1171,6 +1177,12 @@ class PlaylistGenerator:
             import shutil
             shutil.copy2(source_image, destination_image)
             
+            # Ensure cover art is world-readable on host mounts
+            try:
+                os.chmod(destination_image, 0o664)
+            except Exception as chmod_err:
+                self.logger.debug(f"chmod failed for {destination_image}: {chmod_err}")
+            
             self.logger.info(f"✅ Successfully applied decade cover art: {source_image} -> {destination_image}")
             return True
             
@@ -1220,6 +1232,12 @@ class PlaylistGenerator:
                 
                 import shutil
                 shutil.copy2(source_image, destination_image)
+                
+                # Ensure cover art is world-readable on host mounts
+                try:
+                    os.chmod(destination_image, 0o664)
+                except Exception as chmod_err:
+                    self.logger.debug(f"chmod failed for {destination_image}: {chmod_err}")
                 
                 self.logger.info(f"✅ Successfully applied predefined genre cover art: {source_image} -> {destination_image}")
                 return True
@@ -1383,6 +1401,13 @@ class PlaylistGenerator:
                 file_extension = source_cover.suffix
                 fallback_destination = playlist_dir / f"folder{file_extension}"
                 shutil.copy2(source_cover, fallback_destination)
+                
+                # Ensure cover art is world-readable on host mounts
+                try:
+                    os.chmod(fallback_destination, 0o664)
+                except Exception as chmod_err:
+                    self.logger.debug(f"chmod failed for {fallback_destination}: {chmod_err}")
+                
                 self.logger.info(f"✅ Fallback: copied artist folder cover art: {fallback_destination}")
                 return True
             
@@ -1476,7 +1501,7 @@ class PlaylistGenerator:
         # Look for folder.jpg or other cover art files in the artist folder
         cover_files = [
             "folder.jpg", "folder.jpeg", "folder.png",
-            "cover.jpg", "cover.jpeg", "cover.png",
+            "cover.jpg", "cover.jpeg", "cover.png", 
             "artist.jpg", "artist.jpeg", "artist.png",
             "thumb.jpg", "thumb.jpeg", "thumb.png"
         ]
@@ -1654,6 +1679,7 @@ class PlaylistGenerator:
                 
                 # Try to load a system font at base size
                 try:
+                    # Try to find a system font
                     system_fonts = [
                         '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
                         '/System/Library/Fonts/Helvetica.ttc',  # macOS
@@ -2082,7 +2108,16 @@ class PlaylistGenerator:
                                     # Fallback: copy the original image directly
                                     self.logger.info(f"🖼️ Fallback: Using original artist cover image: {artist_cover_path}")
                                     import shutil
-                                    shutil.copy2(artist_cover_path, cover_dest)
+                                    file_extension = artist_cover_path.suffix
+                                    fallback_destination = playlist_dir / f"folder{file_extension}"
+                                    shutil.copy2(artist_cover_path, fallback_destination)
+                                    
+                                    # Ensure cover art is world-readable on host mounts
+                                    try:
+                                        os.chmod(fallback_destination, 0o664)
+                                    except Exception as chmod_err:
+                                        self.logger.debug(f"chmod failed for {fallback_destination}: {chmod_err}")
+                                    
                                     cover_added = True
                                     self.logger.info(f"✅ Applied existing artist cover art as fallback for: {artist_name}")
                             else:
