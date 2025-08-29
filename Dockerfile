@@ -2,23 +2,16 @@ FROM python:3.11-alpine
 
 # Set working directory and copy app files
 WORKDIR /app
-COPY . /app
+COPY app /app
 RUN chmod +x /app/start.sh
 
 # Install required packages
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create directories for playlists, logs, config, and cover
-RUN mkdir -p playlists logs config cover
-
-# Copy default cover files to a temporary location
-COPY data/cover default_cover
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV JELLYFIN_URL=http://jellyfin:8096
-ENV PLAYLIST_FOLDER=/app/playlists
 ENV LOG_LEVEL=INFO
 ENV GENERATION_INTERVAL=24
 ENV ENABLE_WEB_UI=true

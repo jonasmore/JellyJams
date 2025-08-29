@@ -466,7 +466,7 @@ def logs():
         except Exception as e:
             return f"Error reading logs: {e}"
 
-    log_file = '/app/logs/jellyjams.log'
+    log_file = '/data/logs/jellyjams.log'
     log_content = read_last_lines(log_file, 100)
     return render_template('logs.html', log_content=log_content)
 
@@ -479,7 +479,7 @@ def api_logs_tail():
     except (TypeError, ValueError):
         lines = 100
 
-    log_file = '/app/logs/jellyjams.log'
+    log_file = '/data/logs/jellyjams.log'
 
     def read_last_lines(path: str, n: int) -> str:
         try:

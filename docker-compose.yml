@@ -6,7 +6,6 @@ services:
       # Essential container settings (not configurable via web UI)
       - JELLYFIN_URL=${JELLYFIN_URL}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - PLAYLIST_FOLDER=${PLAYLIST_FOLDER}
       - ENABLE_WEB_UI=${ENABLE_WEB_UI}
       - WEB_PORT=${WEB_PORT}
       # Default fallback values (web UI settings will override these)
@@ -25,19 +24,15 @@ services:
       - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
-      # Local directories for Docker Desktop (using named volumes to avoid path issues)
-      - jellyjams_playlists:/app/playlists
-      - jellyjams_logs:/app/logs
-      - jellyjams_config:/app/config
-      - jellyjams_cover:/app/cover
-      # Music directory for cover art generation (adjust path for your system)
-      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
+      # JellyJames app data
+      - jellyjams_appdata:/data
+      # Ready-only access to music directory for cover art generation
+      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
+      # Jellyfin playlists directory for playlist and art management
+      - ${PLAYLIST_DIR_HOST}:/playlists
     ports:
       - "${WEB_PORT}:5000"
     restart: unless-stopped
 
 volumes:
-  jellyjams_playlists:
-  jellyjams_logs:
-  jellyjams_config:
-  jellyjams_cover:
+  jellyjams_appdata:
