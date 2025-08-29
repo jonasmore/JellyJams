@@ -517,11 +517,53 @@ def api_settings():
             settings['discord_webhook_enabled'] = settings.get('discord_webhook_enabled', False)
             settings['discord_webhook_url'] = settings.get('discord_webhook_url', '')
         
-        return jsonify(settings)
+        # Return in a shape expected by the frontend JS (with success and settings keys)
+        resp = jsonify({
+            'success': True,
+            'settings': settings
+        })
+        # Prevent caching so browser always gets latest settings
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
     
     elif request.method == 'POST':
         try:
             settings = request.json
+            # Load previous settings to compute diffs for logging
+            previous_settings = config_manager.load_settings()
+
+            # Helper to redact sensitive values
+            def _redact(key, value):
+                key_l = (key or '').lower()
+                if any(s in key_l for s in ['password', 'secret', 'webhook']):
+                    return '***redacted***'
+                return value
+
+            # Compute changed keys (simple shallow diff)
+            changed = {}
+            for k, new_v in (settings or {}).items():
+                old_v = previous_settings.get(k)
+                if new_v != old_v:
+                    changed[k] = {
+                        'from': _redact(k, old_v),
+                        'to': _redact(k, new_v)
+                    }
+
+            if changed:
+                # Log a concise summary and some detailed lines
+                logger.info(f"🛠️ Settings updated via Web UI: {len(changed)} keys changed")
+                # Highlight common important fields if present
+                for key in ['playlist_types', 'schedule_mode', 'schedule_time', 'generation_interval', 'auto_generate_on_startup']:
+                    if key in changed:
+                        logger.info(f"🔧 {key}: {changed[key]['from']} -> {changed[key]['to']}")
+                # Log remaining changes (limit to avoid log spam)
+                other_changes = [k for k in changed.keys() if k not in ['playlist_types', 'schedule_mode', 'schedule_time', 'generation_interval', 'auto_generate_on_startup']]
+                for k in other_changes[:10]:
+                    logger.debug(f"⚙️ {k}: {changed[k]['from']} -> {changed[k]['to']}")
+                if len(other_changes) > 10:
+                    logger.debug(f"… {len(other_changes) - 10} more changes not shown")
+
             if config_manager.save_settings(settings):
                 config_manager.apply_settings(settings)
                 return jsonify({'success': True, 'message': 'Settings saved successfully'})
@@ -1349,8 +1391,55 @@ def get_detailed_playlist_info():
                 if xml_file.exists():
                     # Get file stats
                     stat = xml_file.stat()
-                    created = datetime.fromtimestamp(stat.st_ctime)
+                    # Modified time comes from the playlist file (updates when overwritten/changed)
                     modified = datetime.fromtimestamp(stat.st_mtime)
+
+                    # Stable created time handling: persist a created.txt alongside the playlist
+                    created_file = playlist_path / 'created.txt'
+                    created = None
+                    if created_file.exists():
+                        try:
+                            created_text = created_file.read_text(encoding='utf-8').strip()
+                            # Support both ISO and formatted timestamps
+                            try:
+                                created = datetime.fromisoformat(created_text)
+                            except ValueError:
+                                created = datetime.strptime(created_text, '%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            created = None
+                    if created is None:
+                        # Infer a best-effort creation time from available filesystem timestamps
+                        # Note: st_ctime on Linux is ctime (metadata change), so prefer the oldest among candidates
+                        candidates = [
+                            stat.st_mtime,            # xml modified
+                            stat.st_ctime             # xml ctime/change time
+                        ]
+                        try:
+                            dir_stat = playlist_path.stat()
+                            candidates.extend([dir_stat.st_mtime, dir_stat.st_ctime])
+                        except Exception:
+                            pass
+                        try:
+                            # Consider cover image if present as an additional hint
+                            for base in ['folder', 'cover']:
+                                for ext in ['.png', '.jpg', '.jpeg']:
+                                    cf = playlist_path / f"{base}{ext}"
+                                    if cf.exists():
+                                        cfs = cf.stat()
+                                        candidates.extend([cfs.st_mtime, cfs.st_ctime])
+                        except Exception:
+                            pass
+
+                        # Choose the earliest plausible timestamp
+                        created_ts = min(candidates) if candidates else stat.st_mtime
+                        created = datetime.fromtimestamp(created_ts)
+
+                        # Persist for future stable display
+                        try:
+                            created_file.write_text(created.isoformat(), encoding='utf-8')
+                        except Exception:
+                            # Non-fatal if we cannot write; UI will still show inferred value
+                            pass
                     
                     # Try to get track count from XML
                     track_count = 0

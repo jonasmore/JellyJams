@@ -75,6 +75,10 @@
                         <input class="form-check-input" type="checkbox" id="type_artist" name="playlist_types" value="Artist" {% if 'Artist' in settings.playlist_types %}checked{% endif %}>
                         <label class="form-check-label" for="type_artist"><i class="fas fa-user me-1"></i>Artist-based playlists</label>
                     </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="type_personal" name="playlist_types" value="Personal" {% if 'Personal' in settings.playlist_types %}checked{% endif %}>
+                        <label class="form-check-label" for="type_personal"><i class="fas fa-user-friends me-1"></i>Personalized playlists</label>
+                    </div>
                 </div>
             </div>
 
@@ -275,6 +279,43 @@ let excludedArtists = JSON.parse('{{ settings.excluded_artists|tojson|safe }}');
 let currentUsers = [];
 let currentSettings = {}; // Use one settings object
 
+function populateAllSettings() {
+    // Basic/Jellyfin
+    $('#jellyfin_url').val(currentSettings.jellyfin_url || '');
+
+    // Playlist limits
+    $('#max_tracks_per_playlist').val(currentSettings.max_tracks_per_playlist || 100);
+    $('#min_tracks_per_playlist').val(currentSettings.min_tracks_per_playlist || 5);
+    $('#min_artist_diversity').val(currentSettings.min_artist_diversity || 5);
+    $('#min_albums_per_artist').val(currentSettings.min_albums_per_artist || 2);
+
+    // Playlist types
+    const types = Array.isArray(currentSettings.playlist_types)
+        ? currentSettings.playlist_types
+        : (typeof currentSettings.playlist_types === 'string' ? currentSettings.playlist_types.split(',') : []);
+    $('#type_genre').prop('checked', types.includes('Genre'));
+    $('#type_year').prop('checked', types.includes('Year'));
+    $('#type_artist').prop('checked', types.includes('Artist'));
+    $('#type_personal').prop('checked', types.includes('Personal'));
+
+    // Scheduling
+    const schedMode = currentSettings.schedule_mode || 'manual';
+    $('#schedule_mode').val(schedMode);
+    handleScheduleModeChange();
+    $('#schedule_time').val(currentSettings.schedule_time || '00:00');
+    $('#generation_interval').val(currentSettings.generation_interval || 24);
+    $('#auto_generate_on_startup').prop('checked', !!currentSettings.auto_generate_on_startup);
+
+    // Advanced
+    $('#log_level').val(currentSettings.log_level || 'INFO');
+    $('#shuffle_tracks').prop('checked', !!currentSettings.shuffle_tracks);
+
+    // Spotify
+    $('#spotify_cover_art_enabled').prop('checked', !!currentSettings.spotify_cover_art_enabled);
+    $('#spotify_client_id').val(currentSettings.spotify_client_id || '');
+    $('#spotify_client_secret').val(currentSettings.spotify_client_secret || '');
+}
+
 // Render functions
 function renderExcludedItems(items, containerId, removeFunction) {
     const container = $(`#${containerId}`);
@@ -394,8 +435,13 @@ function loadCurrentSettings() {
         if (data.success) {
             currentSettings = data.settings;
             // Populate all form fields
+            populateAllSettings();
             populateUserForm();
-            // You can add other form population calls here if needed
+            // Update exclusions UI from persisted settings
+            excludedGenres = Array.isArray(currentSettings.excluded_genres) ? currentSettings.excluded_genres : (currentSettings.excluded_genres || []);
+            excludedArtists = Array.isArray(currentSettings.excluded_artists) ? currentSettings.excluded_artists : (currentSettings.excluded_artists || []);
+            renderExcludedItems(excludedGenres, 'excluded_genres_container', 'removeExcludedGenre');
+            renderExcludedItems(excludedArtists, 'excluded_artists_container', 'removeExcludedArtist');
         }
     });
 }
