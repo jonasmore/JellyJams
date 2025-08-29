@@ -131,6 +131,15 @@
                             <span><i class="fas fa-edit me-1"></i>Modified:</span>
                             <span>{{ playlist.modified }}</span>
                         </div>
+                        {% if playlist.delta_added is not none and playlist.delta_removed is not none %}
+                        <div class="d-flex justify-content-between">
+                            <span><i class="fas fa-exchange-alt me-1"></i>Changes:</span>
+                            <span>
+                                <span class="{% if playlist.delta_removed and playlist.delta_removed > 0 %}text-danger{% else %}text-muted{% endif %}">-{{ playlist.delta_removed or 0 }}</span>
+                                <span class="ms-2 {% if playlist.delta_added and playlist.delta_added > 0 %}text-success{% else %}text-muted{% endif %}">+{{ playlist.delta_added or 0 }}</span>
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

@@ -1441,15 +1441,56 @@ def get_detailed_playlist_info():
                             # Non-fatal if we cannot write; UI will still show inferred value
                             pass
                     
-                    # Try to get track count from XML
+                    # Try to get track info from XML
                     track_count = 0
+                    current_tracks = set()
                     try:
                         import xml.etree.ElementTree as ET
                         tree = ET.parse(xml_file)
                         playlist_items = tree.find('PlaylistItems')
                         if playlist_items is not None:
-                            track_count = len(playlist_items.findall('PlaylistItem'))
-                    except:
+                            items = playlist_items.findall('PlaylistItem')
+                            track_count = len(items)
+                            for it in items:
+                                p = it.find('Path')
+                                if p is not None and p.text:
+                                    current_tracks.add(p.text.strip())
+                    except Exception:
+                        pass
+
+                    # Compute change summary (+added / -removed) vs previous snapshot
+                    delta_added = None
+                    delta_removed = None
+                    try:
+                        import json as _json
+                        snapshot_path = playlist_path / 'last_tracks.json'
+                        current_mtime_iso = modified.isoformat()
+                        if snapshot_path.exists():
+                            data = _json.loads(snapshot_path.read_text(encoding='utf-8'))
+                            prev_tracks = set(data.get('tracks', []))
+                            prev_mtime = data.get('mtime')
+                            # Compare regardless of mtime to detect differences
+                            if prev_tracks:
+                                delta_added = len(current_tracks - prev_tracks)
+                                delta_removed = len(prev_tracks - current_tracks)
+                        else:
+                            # First time snapshot: treat all as added
+                            delta_added = len(current_tracks) if current_tracks else track_count
+                            delta_removed = 0
+
+                        # Update snapshot to current state (best effort)
+                        try:
+                            snapshot_path.write_text(
+                                _json.dumps({
+                                    'mtime': current_mtime_iso,
+                                    'tracks': sorted(list(current_tracks))
+                                }, indent=2),
+                                encoding='utf-8'
+                            )
+                        except Exception:
+                            pass
+                    except Exception:
+                        # If snapshot logic fails, just omit deltas
                         pass
                     
                     # Determine playlist category
@@ -1482,6 +1523,8 @@ def get_detailed_playlist_info():
                         'track_count': track_count,
                         'created': created.strftime('%Y-%m-%d %H:%M:%S'),
                         'modified': modified.strftime('%Y-%m-%d %H:%M:%S'),
+                        'delta_added': delta_added,
+                        'delta_removed': delta_removed,
                         'size': xml_file.stat().st_size
                     })
         
