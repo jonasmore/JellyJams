@@ -231,7 +231,9 @@ For Unraid users, use bind mounts to `/mnt/user/appdata/jellyjams/`:
 
 ```yaml
 volumes:
-  - /mnt/user/appdata/jellyjams/playlists:/app/playlists
+  # Playlist folder location of Jellyfin
+  - /mnt/user/appdata/Jellyfin/data/playlists:/app/playlists
+  # JellyJams settings and logs
   - /mnt/user/appdata/jellyjams/logs:/app/logs
   - /mnt/user/appdata/jellyjams/config:/app/config
   # Music directory for cover art generation (adjust path for your system)

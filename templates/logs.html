@@ -20,6 +20,9 @@
             <button type="button" class="btn btn-outline-success" onclick="filterLogs('info')">
                 <i class="fas fa-info-circle me-1"></i>Info
             </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filterLogs('debug')">
+                <i class="fas fa-bug me-1"></i>Debug
+            </button>
             <button type="button" class="btn btn-outline-warning" onclick="filterLogs('warning')">
                 <i class="fas fa-exclamation-triangle me-1"></i>Warning
             </button>
@@ -86,7 +89,7 @@
             <div class="card-footer">
                 <small class="text-muted">
                     <i class="fas fa-info-circle me-1"></i>
-                    Logs are automatically refreshed every 10 seconds when auto-refresh is enabled.
+                    Logs are automatically refreshed every second when auto-refresh is enabled.
                     Use the filter buttons above to show specific log levels.
                 </small>
             </div>
@@ -192,6 +195,8 @@ function filterLogs(level) {
             switch (level) {
                 case 'info':
                     return upperLine.includes(' INFO ');
+                case 'debug':
+                    return upperLine.includes(' DEBUG ');
                 case 'warning':
                     return upperLine.includes(' WARNING ') || upperLine.includes(' WARN ');
                 case 'error':
