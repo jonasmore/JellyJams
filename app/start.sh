@@ -4,21 +4,13 @@
 
 echo "🎵 Starting JellyJams Generator..."
 
-# Initialize default cover files if they don't exist
-echo "🖼️ Checking for default cover files..."
-if [ -d "/app/default_cover" ] && [ "$(ls -A /app/default_cover 2>/dev/null)" ]; then
-    for file in /app/default_cover/*; do
-        filename=$(basename "$file")
-        if [ ! -f "/app/cover/$filename" ]; then
-            echo "📁 Copying default cover: $filename"
-            cp "$file" "/app/cover/"
-        else
-            echo "✅ Custom cover exists, skipping: $filename"
-        fi
-    done
-    echo "🎨 Cover file initialization complete"
-else
-    echo "⚠️ No default cover files found in /app/default_cover"
+# Create app-data directories
+mkdir -p /data /data/config /data/logs
+
+# Put default cover art in /data if not already there
+if [ ! -d "/data/cover" ]; then
+    echo "Moving default cover art to /data/cover"
+    cp -r /app/cover /data/
 fi
 
 # Set log level to DEBUG for comprehensive logging
@@ -27,7 +19,7 @@ export LOG_LEVEL=DEBUG
 # Function to run playlist generator in background
 run_generator() {
     echo "🎯 Starting playlist generator background process..."
-    python vibecodeplugin.py &
+    python /app/vibecodeplugin.py &
     GENERATOR_PID=$!
     echo "📊 Playlist generator started with PID: $GENERATOR_PID"
 }
@@ -46,5 +38,5 @@ else
     echo "🎯 Web UI disabled - running playlist generator only"
     
     # Run the original playlist generator
-    exec python vibecodeplugin.py
+    exec python /app/vibecodeplugin.py
 fi

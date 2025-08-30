@@ -58,10 +58,12 @@ def normalize_name(s: str) -> str:
     return s.strip()
 class Config:
     def __init__(self):
+        # Set constants
+        self.playlist_folder = '/playlists'
+
         # Load environment variables first (as defaults)
         self.jellyfin_url = os.getenv('JELLYFIN_URL', 'http://jellyfin:8096')
         self.api_key = os.getenv('JELLYFIN_API_KEY', '')
-        self.playlist_folder = os.getenv('PLAYLIST_FOLDER', '/app/playlists')
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
         self.generation_interval = int(os.getenv('GENERATION_INTERVAL', '24'))
         self.max_tracks_per_playlist = int(os.getenv('MAX_TRACKS_PER_PLAYLIST', '100'))
@@ -628,7 +630,7 @@ class SpotifyClient:
 def setup_logging(config: Config):
     """Setup logging configuration with timestamps - ensure all logs visible in Docker"""
     # Ensure log directory exists
-    log_dir = Path('/app/logs')
+    log_dir = Path('/data/logs')
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         print(f"📁 Log directory created/verified: {log_dir}")
@@ -1033,9 +1035,7 @@ class PlaylistGenerator:
     def copy_custom_cover_art(self, playlist_name: str, playlist_dir: Path) -> bool:
         """Copy custom cover art from /app/cover/ directory with fallback system and extension preservation"""
         try:
-            # Define the source cover directory (matches Docker volume mount)
-            cover_source_dir = Path("/app/cover")
-            
+            cover_source_dir = Path("/data/cover")
             self.logger.info(f"Looking for custom cover art for playlist: {playlist_name}")
             self.logger.info(f"Checking cover source directory: {cover_source_dir}")
             
@@ -1145,8 +1145,7 @@ class PlaylistGenerator:
             decade = playlist_name.replace("Back to the ", "").strip()
             self.logger.info(f"🗓️ Looking for decade-specific cover art for: {decade}")
             
-            # Define the source cover directory
-            cover_source_dir = Path("/app/cover")
+            cover_source_dir = Path("/data/cover")
             
             if not cover_source_dir.exists():
                 self.logger.warning(f"Cover source directory does not exist: {cover_source_dir}")
@@ -1227,8 +1226,7 @@ class PlaylistGenerator:
         try:
             self.logger.info(f"🎵 Looking for genre cover art for: {genre_name}")
             
-            # Define the source cover directory
-            cover_source_dir = Path("/app/cover")
+            cover_source_dir = Path("/data/cover")
             
             if not cover_source_dir.exists():
                 self.logger.warning(f"Cover source directory does not exist: {cover_source_dir}")
@@ -1455,94 +1453,7 @@ class PlaylistGenerator:
         artist_path = self._get_artist_path_from_jellyfin(artist_name)
         if artist_path:
             self.logger.debug(f"📡 Got artist path from Jellyfin API: {artist_path}")
-            cover_image = self._find_cover_in_directory(artist_path)
-            if cover_image:
-                return cover_image
-        
-        # Fallback to common paths including Unraid structure
-        possible_base_paths = [
-            Path("/mnt/user/media/data/music"),  # Unraid music path
-            Path("/app/music"),  # Common Docker mount point
-            Path("/music"),      # Alternative mount point
-            Path("/media"),      # Another common mount
-            Path("/data/music"), # Data directory mount
-            Path("/mnt/music"),  # Mount point variant
-            Path("/jellyfin/music"), # Jellyfin specific
-        ]
-        
-        # Debug: Show which paths exist
-        self.logger.debug(f"📁 Checking base paths for artist folders:")
-        for base_path in possible_base_paths:
-            exists = base_path.exists()
-            self.logger.debug(f"  {base_path}: {'✅ exists' if exists else '❌ not found'}")
-            if exists:
-                try:
-                    # Show first few directories as examples
-                    dirs = [d.name for d in base_path.iterdir() if d.is_dir()][:5]
-                    self.logger.debug(f"    Sample directories: {dirs}")
-                except Exception as e:
-                    self.logger.debug(f"    Cannot list directories: {e}")
-        
-        # Try to find artist folder in various locations
-        artist_folder = None
-        for base_path in possible_base_paths:
-            if not base_path.exists():
-                continue
-                
-            self.logger.debug(f"🔍 Searching in: {base_path}")
-            
-            # Try direct artist folder
-            potential_artist_folder = base_path / artist_name
-            self.logger.debug(f"  Trying exact match: {potential_artist_folder}")
-            if potential_artist_folder.exists() and potential_artist_folder.is_dir():
-                artist_folder = potential_artist_folder
-                self.logger.debug(f"  ✅ Found exact match!")
-                break
-            
-            # Try to find artist folder with case-insensitive search
-            try:
-                self.logger.debug(f"  Trying case-insensitive search...")
-                found_dirs = []
-                for item in base_path.iterdir():
-                    if item.is_dir():
-                        found_dirs.append(item.name)
-                        if item.name.lower() == artist_name.lower():
-                            artist_folder = item
-                            self.logger.debug(f"  ✅ Found case-insensitive match: {item}")
-                            break
-                
-                if not artist_folder:
-                    # Show some directories for debugging
-                    sample_dirs = found_dirs[:10]
-                    self.logger.debug(f"  No match found. Sample directories: {sample_dirs}")
-                
-                if artist_folder:
-                    break
-            except Exception as e:
-                self.logger.debug(f"  Error searching {base_path}: {e}")
-                continue
-        
-        if not artist_folder:
-            self.logger.debug(f"❌ No artist folder found for: {artist_name}")
-            return None
-        
-        self.logger.info(f"Found artist folder: {artist_folder}")
-        
-        # Look for folder.jpg or other cover art files in the artist folder
-        cover_files = [
-            "folder.jpg", "folder.jpeg", "folder.png",
-            "cover.jpg", "cover.jpeg", "cover.png", 
-            "artist.jpg", "artist.jpeg", "artist.png",
-            "thumb.jpg", "thumb.jpeg", "thumb.png"
-        ]
-        
-        for cover_file in cover_files:
-            potential_cover = artist_folder / cover_file
-            if potential_cover.exists() and potential_cover.is_file():
-                self.logger.info(f"Found artist cover art: {potential_cover}")
-                return potential_cover
-        
-        self.logger.debug(f"No cover art files found in artist folder: {artist_folder}")
+            return self._find_cover_in_directory(artist_path)
         return None
     
     def _get_artist_path_from_jellyfin(self, artist_name: str) -> Path:
