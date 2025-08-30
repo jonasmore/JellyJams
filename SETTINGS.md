@@ -44,6 +44,7 @@ Override environment variables through the web interface at `http://localhost:50
 | `PLAYLIST_DIR_HOST` | Path to Jellyfin playlists on host | ✅ Yes | ./jellyfin/config/data/playlists |
 | `MUSIC_DIR_HOST` | Path to music on host | No | - |
 | `MUSIC_DIR_CONTAINER` | Path to music in Jellyfin container | No | - |
+
 **Example:**
 ```bash
 JELLYFIN_URL=https://jellyfin.example.com
@@ -53,9 +54,9 @@ MUSIC_DIR_HOST=/host/path/to/music
 MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
 ```
 **Notes:**
-PLAYLIST_DIR_HOST - JellyJams needs direct R/W access to Jellyfin's playlists directory.
-MUSIC_DIR_HOST - Read-only access to you Jellyfin music library is needed if you want Jellyjams to pull artwork from there.
-MUSIC_DIR_CONTAINER - The music needs to be mapped to the same directory in the container as it is in Jellyfin. This is because JellyJams gets the path of music sub-directories from the Jellyfin API, which provides the path as it is in the Jellyfin container.
+- PLAYLIST_DIR_HOST - JellyJams needs direct R/W access to Jellyfin's playlists directory.
+- MUSIC_DIR_HOST - Read-only access to you Jellyfin music library is needed if you want Jellyjams to pull artwork from there.
+- MUSIC_DIR_CONTAINER - The music needs to be mapped to the same directory in the container as it is in Jellyfin. This is because JellyJams gets the path of music sub-directories from the Jellyfin API, which provides the path as it is in the Jellyfin container.
 
 ### Container Settings
 | Variable | Description | Required | Default |
