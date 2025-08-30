@@ -203,41 +203,58 @@ version: '3.8'
 
 services:
   jellyjams:
-    build: .
+    image: jonasmore/jellyjams:latest
     container_name: jellyjams
     environment:
+      # Essential container settings (not configurable via web UI)
       - JELLYFIN_URL=${JELLYFIN_URL}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - ENABLE_WEB_UI=true
+      - ENABLE_WEB_UI=${ENABLE_WEB_UI}
+      - WEB_PORT=${WEB_PORT}
+      # Default fallback values (web UI settings will override these)
+      - LOG_LEVEL=${LOG_LEVEL}
+      - GENERATION_INTERVAL=${GENERATION_INTERVAL}
+      - MAX_TRACKS_PER_PLAYLIST=${MAX_TRACKS_PER_PLAYLIST}
+      - MIN_TRACKS_PER_PLAYLIST=${MIN_TRACKS_PER_PLAYLIST}
+      - EXCLUDED_GENRES=${EXCLUDED_GENRES}
+      - SHUFFLE_TRACKS=${SHUFFLE_TRACKS}
+      - PLAYLIST_TYPES=${PLAYLIST_TYPES}
+      # Web UI Security (environment variables override web UI settings)
+      - WEBUI_BASIC_AUTH_ENABLED=${WEBUI_BASIC_AUTH_ENABLED}
+      - WEBUI_BASIC_AUTH_USERNAME=${WEBUI_BASIC_AUTH_USERNAME}
+      - WEBUI_BASIC_AUTH_PASSWORD=${WEBUI_BASIC_AUTH_PASSWORD}
+      # Discord Notifications
+      - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
-      - jellyjams_playlists:/app/playlists
-      - jellyjams_logs:/app/logs
-      - jellyjams_config:/app/config
-      # Music directory for cover art generation (adjust path for your system)
-      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
+      # JellyJames app data - bind to existing host directory
+      - ./jellyjams:/data
+      # Ready-only access to music directory for cover art generation
+      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
+      # Jellyfin playlists directory for playlist and art management
+      - ${PLAYLIST_DIR_HOST}:/playlists
     ports:
-      - "5000:5000"
+      - "${WEB_PORT}:5000"
     restart: unless-stopped
-
-volumes:
-  jellyjams_playlists:
-  jellyjams_logs:
-  jellyjams_config:
 ```
 
 ### Unraid Deployment
 
-For Unraid users, use bind mounts to `/mnt/user/appdata/jellyjams/`:
+For Unraid users, use bind app data to `/mnt/user/appdata/jallyjams/` for persistent storage:
 
 ```yaml
-volumes:
-  # Playlist folder location of Jellyfin
-  - /mnt/user/appdata/Jellyfin/data/playlists:/app/playlists
-  # JellyJams settings and logs
-  - /mnt/user/appdata/jellyjams/logs:/app/logs
-  - /mnt/user/appdata/jellyjams/config:/app/config
-  # Music directory for cover art generation (adjust path for your system)
-  - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
+    volumes:
+      # JellyJames app data
+      - /mnt/user/appdata/jellyjams:/data
+      # Ready-only access to music directory for cover art generation
+      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
+      # Jellyfin playlists directory for playlist and art management
+      - ${PLAYLIST_DIR_HOST}:/playlists
+
+# Set these vars in your .env
+PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
+MUSIC_DIR_HOST=/mnt/user/media/data/music
+MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
 ```
 
 ## 🔧 API Integration
@@ -282,19 +299,25 @@ JellyJams uses the Jellyfin REST API to:
 
 ```
 jellyjams/
-├── vibecodeplugin.py      # Main playlist generator
-├── webapp.py              # Flask web UI
-├── start.sh               # Container startup script
+├── .env.example           # Environment template
 ├── Dockerfile             # Container definition
 ├── docker-compose.yml     # Docker Compose config
-├── requirements.txt       # Python dependencies
-├── .env.example          # Environment template
-└── templates/            # HTML templates
-    ├── base.html
-    ├── index.html
-    ├── settings.html
-    ├── playlists.html
-    └── logs.html
+└── app/                   # Container app files
+    ├── vibecodeplugin.py      # Main playlist generator
+    ├── webapp.py              # Flask web UI
+    ├── start.sh               # Container startup script
+    ├── requirements.txt       # Python dependencies
+    └── cover                  # Default playlist images
+        ├── Playlist Name.jpg
+    └── static/                # WebUI assets
+        └── css/
+            ├── app.css
+    └── templates/             # HTML templates
+        ├── base.html
+        ├── index.html
+        ├── settings.html
+        ├── playlists.html
+        └── logs.html
 ```
 
 ## 🤝 Contributing
