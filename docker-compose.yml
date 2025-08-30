@@ -24,8 +24,8 @@ services:
       - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
-      # JellyJames app data
-      - jellyjams_appdata:/data
+      # JellyJames app data - bind to existing host directory
+      - ./jellyjams:/data
       # Ready-only access to music directory for cover art generation
       - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
       # Jellyfin playlists directory for playlist and art management
@@ -33,6 +33,3 @@ services:
     ports:
       - "${WEB_PORT}:5000"
     restart: unless-stopped
-
-volumes:
-  jellyjams_appdata:
