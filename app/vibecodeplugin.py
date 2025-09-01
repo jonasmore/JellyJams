@@ -1510,27 +1510,13 @@ class PlaylistGenerator:
 
         return None
     
-    def _find_cover_in_directory(self, directory_path: Path) -> Path:
-        """Find cover art files in a specific directory"""
-        if not directory_path or not directory_path.exists():
-            return None
-        
-        self.logger.debug(f"🔍 Searching for cover art in: {directory_path}")
-        
-        # Look for cover art files in the directory
-        cover_files = [
-            "folder.jpg", "folder.jpeg", "folder.png",
-            "cover.jpg", "cover.jpeg", "cover.png", 
-            "artist.jpg", "artist.jpeg", "artist.png",
-            "thumb.jpg", "thumb.jpeg", "thumb.png"
-        ]
-        
-        for cover_file in cover_files:
-            potential_cover = directory_path / cover_file
-            if potential_cover.exists() and potential_cover.is_file():
-                self.logger.info(f"🖼️ Found cover art: {potential_cover}")
-                return potential_cover
-        
+    def _find_cover_in_directory(self, directory_path: Path) -> Path | None:
+        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|heif)$", re.IGNORECASE)
+        for root, dirs, files in os.walk(directory_path):
+            for fname in files:
+                if pattern.match(fname):
+                    self.logger.info(f"🖼️ Found cover art: {Path(root) / fname}")
+                    return Path(root) / fname
         self.logger.debug(f"No cover art files found in: {directory_path}")
         return None
     
