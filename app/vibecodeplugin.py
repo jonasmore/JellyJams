@@ -1511,7 +1511,7 @@ class PlaylistGenerator:
         return None
     
     def _find_cover_in_directory(self, directory_path: Path) -> Path | None:
-        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|heif)$", re.IGNORECASE)
+        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|gif)$", re.IGNORECASE)
         for root, dirs, files in os.walk(directory_path):
             for fname in files:
                 if pattern.match(fname):
