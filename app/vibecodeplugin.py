@@ -1448,7 +1448,7 @@ class PlaylistGenerator:
             return False
     
     def _try_artist_folder_fallback(self, playlist_name: str, playlist_dir: Path) -> bool:
-        """Generate custom cover art with 'This is <artist>' text overlay from artist folder images"""
+        """Generate custom cover art with 'This is <artist>' text overlay from artist images"""
         try:
             # Only apply this fallback for artist playlists
             if not playlist_name.startswith("This is "):
@@ -1473,10 +1473,8 @@ class PlaylistGenerator:
             else:
                 # Fallback to simple copy if text overlay fails
                 self.logger.warning("Text overlay failed, falling back to simple copy")
-                import shutil
-                file_extension = source_cover.suffix
-                fallback_destination = playlist_dir / f"folder{file_extension}"
-                shutil.copy2(source_cover, fallback_destination)
+                fallback_destination = playlist_dir / "folder.webp"
+                Image.open(BytesIO(source_cover)).save(fallback_destination)
                 
                 # Ensure cover art is world-readable on host mounts
                 try:
