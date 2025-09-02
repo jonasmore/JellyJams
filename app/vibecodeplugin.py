@@ -13,11 +13,13 @@ import logging
 import requests
 import schedule
 import signal
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
+from urllib.parse import quote
 from io import BytesIO
 
 # PIL/Pillow imports for custom cover art generation
@@ -740,9 +742,8 @@ class JellyfinAPI:
         if not artist_name:
             raise ValueError("artist_name is required")
 
-        base = self.config.jellyfin_url.rstrip("/")
         encoded = quote(artist_name, safe="")
-        url = f"{base}/Artists/{encoded}/Images/Primary"
+        url = f"{self.config.jellyfin_url}/Artists/{encoded}/Images/Primary/0"
         params = {"format": "webp", "maxWidth": 600, "maxHeight": 600}
 
         # Merge in an Accept header that prefers webp.
@@ -1494,7 +1495,7 @@ class PlaylistGenerator:
     
     def _find_artist_cover_image(self, artist_name: str) -> Optional[bytes]:
         """First, try getting artist image from Jellyfin API"""
-        artist_image = self.jellyfin.get_artist_image_by_name(self, artist_name, 5)
+        artist_image = self.jellyfin.get_artist_image_by_name(artist_name)
         if not (artist_image is None):
             return artist_image
 
