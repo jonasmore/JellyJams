@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
+from io import BytesIO
 
 # PIL/Pillow imports for custom cover art generation
 try:
@@ -735,6 +736,52 @@ class JellyfinAPI:
             self.logger.error(f"Failed to connect to Jellyfin: {e}")
             return False
 
+    def get_artist_image_by_name(self, artist_name: str, timeout: float = 10.0) -> Optional[bytes]:
+        if not artist_name:
+            raise ValueError("artist_name is required")
+
+        base = self.config.jellyfin_url.rstrip("/")
+        encoded = quote(artist_name, safe="")
+        url = f"{base}/Artists/{encoded}/Images/Primary"
+        params = {"format": "webp", "maxWidth": 600, "maxHeight": 600}
+
+        # Merge in an Accept header that prefers webp.
+        headers = {"Accept": "image/webp,image/*;q=0.8,*/*;q=0.5"}
+
+        try:
+            resp = self.session.get(url, params=params, headers=headers, timeout=timeout)
+            if resp.status_code == 404:
+                self.logger.info("Artist not found or no primary image: %r", artist_name)
+                return None
+            resp.raise_for_status()
+
+            ctype = resp.headers.get("Content-Type", "").lower()
+            if "image" not in ctype:
+                # Jellyfin should return an image; if not, log a short body preview
+                preview = ""
+                try:
+                    preview = (resp.text or "")[:300]
+                except Exception:
+                    pass
+                self.logger.error("Unexpected response (Content-Type=%s). Body: %s", ctype, preview)
+                raise requests.exceptions.RequestException(
+                    f"Unexpected response (Content-Type={ctype}). Body: {preview}"
+                )
+            return resp.content
+
+        except requests.exceptions.HTTPError as e:
+            # Keep an informative log (with short body preview, if any)
+            body_preview = ""
+            try:
+                body_preview = (getattr(e.response, "text", "") or "")[:300]
+            except Exception:
+                pass
+            self.logger.error("Jellyfin HTTP error for %s: %s | %s", url, e, body_preview)
+            raise
+        except requests.exceptions.RequestException as e:
+            self.logger.error("Failed fetching artist image: %s", e)
+            raise
+    
     def get_users(self) -> List[Dict]:
         """Get all users from Jellyfin"""
         try:
@@ -1388,7 +1435,7 @@ class PlaylistGenerator:
                 draw.text((x2, y2), line2, font=font, fill=text_color)
                 
                 # Save the final image
-                background.save(destination, "JPEG", quality=95)
+                background.save(destination, "JPEG", quality=85)
                 
                 self.logger.info(f"✅ Generated genre cover art: {destination}")
                 return True
@@ -1412,11 +1459,11 @@ class PlaylistGenerator:
             
             # Find artist folder and source image
             source_cover = self._find_artist_cover_image(artist_name)
-            if not source_cover:
+            if source_cover is None:
                 return False
             
             # Generate custom cover art with text overlay
-            destination_cover = playlist_dir / "folder.png"
+            destination_cover = playlist_dir / "folder.webp"
             success = self._generate_custom_cover_art(source_cover, artist_name, destination_cover)
             
             if success:
@@ -1445,10 +1492,14 @@ class PlaylistGenerator:
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")
             return False
     
-    def _find_artist_cover_image(self, artist_name: str) -> Path:
-        """Find cover image in artist folder using Jellyfin API and common paths"""
+    def _find_artist_cover_image(self, artist_name: str) -> Optional[bytes]:
+        """First, try getting artist image from Jellyfin API"""
+        artist_image = self.jellyfin.get_artist_image_by_name(self, artist_name, 5)
+        if not (artist_image is None):
+            return artist_image
+
+        """Else, search artist folder for image"""
         self.logger.debug(f"🔍 Searching for artist folder: {artist_name}")
-        
         # First try to get artist info from Jellyfin API
         artist_path = self._get_artist_path_from_jellyfin(artist_name)
         if artist_path:
@@ -1510,13 +1561,13 @@ class PlaylistGenerator:
 
         return None
     
-    def _find_cover_in_directory(self, directory_path: Path) -> Path | None:
-        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|gif)$", re.IGNORECASE)
+    def _find_cover_in_directory(self, directory_path: Path) -> Optional[bytes]:
+        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|gif|bmp)$", re.IGNORECASE)
         for root, dirs, files in os.walk(directory_path):
             for fname in files:
                 if pattern.match(fname):
                     self.logger.info(f"🖼️ Found cover art: {Path(root) / fname}")
-                    return Path(root) / fname
+                    return (Path(root) / fname).read_bytes()
         self.logger.debug(f"No cover art files found in: {directory_path}")
         return None
     
@@ -1557,7 +1608,7 @@ class PlaylistGenerator:
             # Fallback: remove all non-ASCII characters
             return ''.join(char for char in text if ord(char) < 128)
     
-    def _generate_custom_cover_art(self, source_image: Path, artist_name: str, destination: Path) -> bool:
+    def _generate_custom_cover_art(self, source_image: bytes, artist_name: str, destination: Path) -> bool:
         """Generate custom cover art with 'This is <artist>' text overlay using multi-stage scaling approach"""
         try:
             import signal
@@ -1573,7 +1624,7 @@ class PlaylistGenerator:
             signal.alarm(10)  # 10 second timeout
             
             # Open the source image
-            with Image.open(source_image) as img:
+            with Image.open(BytesIO(source_image)) as img:
                 # Convert to RGB if needed
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
@@ -1707,7 +1758,7 @@ class PlaylistGenerator:
                 final_img.paste(text_img, (paste_x, paste_y), text_img)
                 
                 # Save the final image as PNG
-                final_img.save(destination, 'PNG', quality=95)
+                final_img.save(destination, 'webp')
                 
                 # Clear timeout
                 signal.alarm(0)
@@ -2014,22 +2065,19 @@ class PlaylistGenerator:
                             self.logger.info(f"🎨 Generating custom cover art for artist: {artist_name}")
                             
                             # First, find the source image to use as base
-                            artist_cover_path = self._find_artist_cover_image(artist_name)
-                            if artist_cover_path:
+                            artist_image = self._find_artist_cover_image(artist_name)
+                            if not (artist_image is None):
                                 # Generate custom cover art with text overlay
-                                cover_dest = playlist_dir / 'cover.jpg'
-                                if self._generate_custom_cover_art(artist_cover_path, artist_name, cover_dest):
+                                cover_dest = playlist_dir / 'cover.webp'
+                                if self._generate_custom_cover_art(artist_image, artist_name, cover_dest):
                                     cover_added = True
                                     self.logger.info(f"✅ Generated custom cover art for artist: {artist_name}")
                                 else:
                                     self.logger.info(f"❌ Failed to generate custom cover art for artist: {artist_name}")
                                     # Fallback: copy the original image directly
-                                    self.logger.info(f"🖼️ Fallback: Using original artist cover image: {artist_cover_path}")
-                                    import shutil
-                                    file_extension = artist_cover_path.suffix
-                                    fallback_destination = playlist_dir / f"folder{file_extension}"
-                                    shutil.copy2(artist_cover_path, fallback_destination)
-                                    
+                                    self.logger.info(f"🖼️ Fallback: Using original artist cover image")
+                                    fallback_destination = playlist_dir / "folder.webp"
+                                    Image.open(BytesIO(artist_image)).save(fallback_destination)
                                     # Ensure cover art is world-readable on host mounts
                                     try:
                                         os.chmod(fallback_destination, 0o664)
