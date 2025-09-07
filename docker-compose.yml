@@ -4,10 +4,10 @@ services:
     container_name: jellyjams
     environment:
       # Essential container settings (not configurable via web UI)
-      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_URL=${JELLYFIN_URL:-http://jellyfin:8096}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - ENABLE_WEB_UI=${ENABLE_WEB_UI}
-      - WEB_PORT=${WEB_PORT}
+      - ENABLE_WEB_UI=${ENABLE_WEB_UI:-true}
+      - WEB_PORT=${WEB_PORT:=5000}
       # Default fallback values (web UI settings will override these)
       - LOG_LEVEL=${LOG_LEVEL:=DEBUG}
       - GENERATION_INTERVAL=${GENERATION_INTERVAL}
