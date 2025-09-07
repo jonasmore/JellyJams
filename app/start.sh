@@ -13,9 +13,6 @@ if [ ! -d "/data/cover" ]; then
     cp -r /app/cover /data/
 fi
 
-# Set log level to DEBUG for comprehensive logging
-export LOG_LEVEL=DEBUG
-
 # Function to run playlist generator in background
 run_generator() {
     echo "🎯 Starting playlist generator background process..."
@@ -32,8 +29,8 @@ if [ "$ENABLE_WEB_UI" = "true" ]; then
     run_generator
     
     # Start the web application with Gunicorn (with logging to stdout)
-    echo "🌐 Starting web UI on port 5000"
-    exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --access-logfile - --error-logfile - webapp:app
+    echo "🌐 Starting web UI on port ${WEB_PORT}"
+    exec gunicorn --bind 0.0.0.0:${WEB_PORT} --workers 2 --timeout 120 --access-logfile - --error-logfile - webapp:app
 else
     echo "🎯 Web UI disabled - running playlist generator only"
     
