@@ -23,11 +23,11 @@ app.secret_key = os.urandom(24)
 
 # Global configuration
 config = Config()
-log_level = logging._nameToLevel[config.log_level]
+log_level_num = logging._nameToLevel[config.log_level]
 
 # Setup logging for web UI
 logging.basicConfig(
-    level=log_level,
+    level=log_level_num,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
@@ -41,7 +41,7 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 logger = logging.getLogger('JellyJams.WebUI')
-logger.setLevel(log_level)
+logger.setLevel(log_level_num)
 logger.info(f"🌐 JellyJams Web UI logging initialized (level = {config.log_level})")
 
 # Serve logo asset
