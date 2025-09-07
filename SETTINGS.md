@@ -32,7 +32,7 @@ JellyJams supports two configuration methods:
 Set in your `.env` file or Docker environment. These serve as defaults.
 
 ### 2. Web UI Settings
-Override environment variables through the web interface at `http://localhost:5000/settings`. These settings are persistent and take precedence over environment variables.
+Override environment variables through the web interface at `http://localhost:{WEB_PORT}/settings`. These settings are persistent and take precedence over environment variables.
 
 ## 🎯 Essential Settings
 
@@ -465,7 +465,7 @@ MIN_TRACKS_PER_PLAYLIST=10
 # .env file for advanced setup
 JELLYFIN_URL=https://jellyfin.example.com
 JELLYFIN_API_KEY=your_api_key_here
-PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/data/playlists
+PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
 MUSIC_DIR_HOST=/host/path/to/music
 MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
 

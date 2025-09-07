@@ -234,7 +234,7 @@ services:
       # Jellyfin playlists directory for playlist and art management
       - ${PLAYLIST_DIR_HOST}:/playlists
     ports:
-      - "${WEB_PORT}:5000"
+      - "${WEB_PORT}:${WEB_PORT}"
     restart: unless-stopped
 ```
 
