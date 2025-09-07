@@ -9,7 +9,7 @@ services:
       - ENABLE_WEB_UI=${ENABLE_WEB_UI:-true}
       - WEB_PORT=${WEB_PORT:-5000}
       # Default fallback values (web UI settings will override these)
-      - LOG_LEVEL=${LOG_LEVEL:=DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
       - GENERATION_INTERVAL=${GENERATION_INTERVAL}
       - MAX_TRACKS_PER_PLAYLIST=${MAX_TRACKS_PER_PLAYLIST}
       - MIN_TRACKS_PER_PLAYLIST=${MIN_TRACKS_PER_PLAYLIST}
