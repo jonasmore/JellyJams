@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
-from urllib.parse import quote
 from io import BytesIO
 
 # PIL/Pillow imports for custom cover art generation
@@ -742,8 +741,7 @@ class JellyfinAPI:
         if not artist_name:
             raise ValueError("artist_name is required")
 
-        encoded = quote(artist_name, safe="")
-        url = f"{self.config.jellyfin_url}/Artists/{encoded}/Images/Primary/0"
+        url = f"{self.config.jellyfin_url}/Artists/{artist_name}/Images/Primary/0"
         params = {"format": "webp", "maxWidth": 600, "maxHeight": 600}
 
         # Merge in an Accept header that prefers webp.
