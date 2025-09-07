@@ -115,7 +115,7 @@ class Config:
     
     def load_web_ui_settings(self):
         """Load settings from web UI JSON file - these take precedence over environment variables"""
-        config_file = '/app/config/settings.json'
+        config_file = '/data/config/settings.json'
         try:
             if Path(config_file).exists():
                 with open(config_file, 'r') as f:
@@ -633,39 +633,39 @@ def setup_logging(config: Config):
     """Setup logging configuration with timestamps - ensure all logs visible in Docker"""
     # Ensure log directory exists
     log_dir = Path('/data/logs')
+    log_level_num = logging._nameToLevel[config.log_level]
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         print(f"📁 Log directory created/verified: {log_dir}")
     except Exception as e:
         print(f"⚠️ Could not create log directory {log_dir}: {e}")
     
-    # Force DEBUG level for comprehensive logging
-    log_level = logging.DEBUG
-    print(f"🔧 Forcing DEBUG level logging for comprehensive output")
+    # Set log level according to settings/default
+    print(f"🔧 Log level is set to {config.log_level}")
     
     # Create formatters with timestamps
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     # Configure root logger to catch ALL logging
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(log_level_num)
     root_logger.handlers.clear()
     
     # Console handler for Docker logs
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(log_level_num)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     
     # Also setup specific jellyjams logger
     logger = logging.getLogger('jellyjams')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(log_level_num)
     logger.propagate = True  # Ensure it propagates to root logger
     
     # File handler (with error handling)
     try:
         file_handler = logging.FileHandler(log_dir / 'jellyjams.log')
-        file_handler.setLevel(logging.DEBUG)
+        file_handler.setLevel(log_level_num)
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
         print(f"📝 File logging enabled: {log_dir / 'jellyjams.log'}")
@@ -677,7 +677,7 @@ def setup_logging(config: Config):
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('requests').setLevel(logging.WARNING)
     
-    print(f"🔧 Comprehensive logging initialized at DEBUG level with timestamps")
+    print(f"🔧 Logging initialized at {config.log_level} level with timestamps")
     print(f"📊 Root logger handlers: {len(root_logger.handlers)} ({[type(h).__name__ for h in root_logger.handlers]})")
     print(f"📊 JellyJams logger propagate: {logger.propagate}")
     
