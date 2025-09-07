@@ -1925,6 +1925,18 @@ class PlaylistGenerator:
     
         return sanitized
     
+    def _jellyfin_playlist_dir(self, playlist_name: str) -> str:
+        """
+        Replace invalid filename characters with spaces as Jellyfin does so that
+        the playlist and corresponding image are saved in the same directory.
+          - Characters: \ / : * ? " < > | and ASCII control chars (0–31)
+        """
+        invalid_chars = r'<>:"/\\|?*\x00-\x1F'
+        # Replace invalid chars with a space
+        sanitized = re.sub(f"[{invalid_chars}]", " ", playlist_name).strip()
+        self.logger.info(f"🧹 Sanitized playlist sub-directory: '{sanitized}'")
+        return sanitized.strip()
+    
     def save_playlist(self, playlist_type: str, name: str, tracks: List[Dict], user_id: str = None):
         """Save playlist using Jellyfin's REST API with proper privacy controls and custom cover art"""
         self.logger.info(f"=== STARTING PLAYLIST CREATION ===")
@@ -1933,6 +1945,7 @@ class PlaylistGenerator:
         
         # Sanitize the playlist name to prevent filesystem errors
         sanitized_name = self._sanitize_playlist_name(name)
+        playlist_subdir = self._jellyfin_playlist_dir(sanitized_name)
         self.logger.info(f"Sanitized Playlist Name: {sanitized_name}")
         self.logger.info(f"Track Count: {len(tracks)}")
         self.logger.info(f"User ID: {user_id}")
@@ -1988,9 +2001,9 @@ class PlaylistGenerator:
             if result['success']:
                 self.logger.info(f"✅ Successfully created {privacy_text} playlist '{sanitized_name}' with {result['track_count']} tracks")
                 
-                # Create directory for cover art storage (use sanitized name for filesystem)
+                # Create directory for cover art storage (use Jellyfin-style sanitized name for filesystem)
                 self.logger.debug(f"Creating directory with sanitized name: {sanitized_name}")
-                playlist_dir = Path(self.config.playlist_folder) / sanitized_name
+                playlist_dir = Path(self.config.playlist_folder) / playlist_subdir
                 self.logger.debug(f"Full directory path: {playlist_dir}")
                 
                 try:
