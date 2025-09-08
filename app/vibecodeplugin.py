@@ -525,14 +525,16 @@ class SpotifyClient:
         import time
         start_time = time.time()
         self.stats['total_attempts'] += 1
+        exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
         
         try:
             # Check if cover art already exists
-            cover_path = playlist_dir / 'cover.jpg'
-            if cover_path.exists():
-                self.logger.debug(f"Cover art already exists for {artist_name}")
-                self.stats['successful_downloads'] += 1
-                return True
+            for ext in exts:
+                cover_path = playlist_dir / f"cover{ext}"
+                if cover_path.exists():
+                    self.logger.debug(f"Cover art already exists for {artist_name}")
+                    self.stats['successful_downloads'] += 1
+                    return True
             
             # Search for Spotify playlist
             playlist_info = self.search_artist_playlist(artist_name)
@@ -1097,7 +1099,7 @@ class PlaylistGenerator:
                 self.logger.warning(f"Could not list cover directory contents: {e}")
             
             # Look for cover image with playlist name (try common extensions)
-            extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+            extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif', '.bmp']
             source_image = None
             found_extension = None
             
@@ -1198,24 +1200,19 @@ class PlaylistGenerator:
                 return False
             
             # Look for decade-specific cover art files in multiple naming formats
-            decade_cover_files = [
-                # Full playlist name format (e.g., "Back to the 1990s.jpg")
-                f"{playlist_name}.jpg",
-                f"{playlist_name}.jpeg",
-                f"{playlist_name}.png",
-                # Decade-only format (e.g., "1990s-cover.jpg")
-                f"{decade}-cover.jpg",
-                f"{decade}-cover.jpeg", 
-                f"{decade}-cover.png"
-            ]
+            # playlist_name is like "Back to the 1990s.jpg"
+            # Decade-only format is like "1990s-cover.jpg"
+            names = [playlist_name, f"{decade}-cover"]
+            exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
             
             source_image = None
-            for cover_file in decade_cover_files:
-                potential_file = cover_source_dir / cover_file
-                if potential_file.exists() and potential_file.is_file():
-                    source_image = potential_file
-                    self.logger.info(f"🖼️ Found decade cover art: {source_image}")
-                    break
+            for base in names:
+                for ext in exts:
+                    candidate = cover_source_dir / f"{file}{ext}"
+                    if candidate.exists() and candidate.is_file():
+                        source_image = candidate
+                        self.logger.info(f"🖼️ Found decade cover art: {source_image}")
+                        break
             
             # If no specific decade cover found, try fallback for pre-1900s music
             if not source_image and decade.endswith('s'):
@@ -1223,14 +1220,8 @@ class PlaylistGenerator:
                     decade_year = int(decade[:-1])  # Remove 's' and convert to int
                     if decade_year < 1900:
                         self.logger.info(f"🕰️ Decade {decade} is before 1900s, trying 1800s fallback...")
-                        fallback_files = [
-                            "1800s-cover.jpg",
-                            "1800s-cover.jpeg",
-                            "1800s-cover.png"
-                        ]
-                        
-                        for fallback_file in fallback_files:
-                            potential_fallback = cover_source_dir / fallback_file
+                        for ext in exts:
+                            potential_fallback = cover_source_dir / f"1800s-cover{ext}"
                             if potential_fallback.exists() and potential_fallback.is_file():
                                 source_image = potential_fallback
                                 self.logger.info(f"🖼️ Found 1800s fallback cover art: {source_image}")
@@ -1279,22 +1270,16 @@ class PlaylistGenerator:
                 return False
             
             # First, try to find predefined genre cover art
-            predefined_cover_files = [
-                f"{genre_name} Radio.jpg",
-                f"{genre_name} Radio.jpeg",
-                f"{genre_name} Radio.png",
-                f"{genre_name}.jpg",
-                f"{genre_name}.jpeg",
-                f"{genre_name}.png"
-            ]
-            
+            names = [f"{genre_name} Radio", genre_name]
+            exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
             source_image = None
-            for cover_file in predefined_cover_files:
-                potential_file = cover_source_dir / cover_file
-                if potential_file.exists() and potential_file.is_file():
-                    source_image = potential_file
-                    self.logger.info(f"🖼️ Found predefined genre cover art: {source_image}")
-                    break
+            for base in names:
+                for ext in exts:
+                    potential_file = cover_source_dir / f"{base}{ext}"
+                    if potential_file.exists() and potential_file.is_file():
+                        source_image = potential_file
+                        self.logger.info(f"🖼️ Found predefined genre cover art: {source_image}")
+                        break
             
             # If predefined cover found, copy it directly
             if source_image:
@@ -1319,27 +1304,20 @@ class PlaylistGenerator:
             # If no predefined cover found, generate one using "Fallback Radio.jpg" background
             self.logger.info(f"🎨 No predefined cover found, generating custom genre cover...")
             
-            # Look for "Fallback Radio.jpg" background template
-            background_files = [
-                "Fallback Radio.jpg",
-                "Fallback Radio.jpeg",
-                "Fallback Radio.png"
-            ]
-            
             background_image = None
-            for bg_file in background_files:
-                potential_bg = cover_source_dir / bg_file
+            for ext in exts:
+                potential_bg = cover_source_dir / f"Fallback Radio{ext}"
                 if potential_bg.exists() and potential_bg.is_file():
                     background_image = potential_bg
                     self.logger.info(f"🖼️ Found background template: {background_image}")
                     break
             
             if not background_image:
-                self.logger.warning(f"❌ No 'Fallback Radio.jpg' background template found for genre cover generation")
+                self.logger.warning(f"❌ No 'Fallback Radio' background template found for genre cover generation")
                 return False
             
             # Generate custom genre cover with text overlay
-            destination_image = playlist_dir / "cover.jpg"
+            destination_image = playlist_dir / "cover.webp"
             success = self._generate_genre_cover_art(background_image, genre_name, destination_image)
             
             if success:
@@ -1559,7 +1537,7 @@ class PlaylistGenerator:
         return None
     
     def _find_cover_in_directory(self, directory_path: Path) -> Optional[bytes]:
-        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|gif|bmp)$", re.IGNORECASE)
+        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|bmp)$", re.IGNORECASE)
         for root, dirs, files in os.walk(directory_path):
             for fname in files:
                 if pattern.match(fname):
