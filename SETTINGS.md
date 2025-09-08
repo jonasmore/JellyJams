@@ -32,26 +32,35 @@ JellyJams supports two configuration methods:
 Set in your `.env` file or Docker environment. These serve as defaults.
 
 ### 2. Web UI Settings
-Override environment variables through the web interface at `http://localhost:5000/settings`. These settings are persistent and take precedence over environment variables.
+Override environment variables through the web interface at `http://localhost:{WEB_PORT}/settings`. These settings are persistent and take precedence over environment variables.
 
 ## 🎯 Essential Settings
 
-### Jellyfin Connection
+### Jellyfin Server Configuration
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `JELLYFIN_URL` | Your Jellyfin server URL | ✅ Yes | - |
+| `JELLYFIN_URL` | Your Jellyfin server URL | ✅ Yes | http://jellyfin:8096 |
 | `JELLYFIN_API_KEY` | Jellyfin API key with media access | ✅ Yes | - |
+| `PLAYLIST_DIR_HOST` | Path to Jellyfin playlists on host | ✅ Yes | ./jellyfin/config/data/playlists |
+| `MUSIC_DIR_HOST` | Path to music on host | No | - |
+| `MUSIC_DIR_CONTAINER` | Path to music in Jellyfin container | No | - |
 
 **Example:**
 ```bash
 JELLYFIN_URL=https://jellyfin.example.com
 JELLYFIN_API_KEY=your_32_character_api_key_here
+PLAYLIST_DIR_HOST=/host/path/to/jellyfin/config/data/playlists
+MUSIC_DIR_HOST=/host/path/to/music
+MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
 ```
+**Notes:**
+- `PLAYLIST_DIR_HOST` - JellyJams needs direct R/W access to Jellyfin's playlists directory.
+- `MUSIC_DIR_HOST` - Read-only access to you Jellyfin music library is needed if you want Jellyjams to pull artwork from there.
+- `MUSIC_DIR_CONTAINER` - The music needs to be mapped to the same directory in the container as it is in Jellyfin. This is because JellyJams gets the path of music sub-directories from the Jellyfin API, which provides the path as it is in the Jellyfin container.
 
 ### Container Settings
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `PLAYLIST_FOLDER` | Container directory for playlists | No | `/app/playlists` |
 | `ENABLE_WEB_UI` | Enable web interface | No | `true` |
 | `WEB_PORT` | Web UI port | No | `5000` |
 | `LOG_LEVEL` | Logging verbosity | No | `INFO` |
@@ -165,13 +174,13 @@ DISCOVERY_MAX_SONGS_PER_ARTIST=3
 ### Custom Cover Art
 JellyJams supports custom playlist covers with intelligent fallback:
 
-1. **Exact Match**: `"Top Tracks - Jonas.jpg"`
-2. **Generic Fallback**: `"Top Tracks - all.png"`
+1. **Exact Match**: `"Top Tracks - Jonas.ext"`
+2. **Generic Fallback**: `"Top Tracks - all.ext"`
 3. **Spotify Fallback**: For artist playlists
 
-**Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
+**Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
 
-**Docker Volume**: Map your cover directory to `/app/cover`
+**Docker Volume**: Put your 'cover' directory in the directory that you map to `/data`
 
 #### Other Playlist Types
 1. **Predefined Custom Covers** - Exact name matching
@@ -184,33 +193,23 @@ For artist playlists, JellyJams automatically generates professional covers:
 
 | Feature | Description |
 |---------|-------------|
-| **Source Image** | Uses artist's `folder.jpg` from music directory |
+| **Source Image** | Uses artist's `folder.ext` from music directory |
 | **Text Overlay** | "This is [Artist]" with adaptive colors |
 | **Unicode Support** | Handles special characters (alt‐J, Sigur Rós, Mötley Crüe) |
-| **Quality** | High-resolution PNG/JPG |
+| **Quality** | High-resolution Webp |
 | **Color Analysis** | Automatic brightness detection for optimal contrast |
 
-#### Music Directory Integration
-JellyJams searches these paths for artist folders:
-- `/mnt/user/media/data/music/[Artist]/` (Unraid)
-- `/app/music/[Artist]/`
-- `/music/[Artist]/`
-- `/media/[Artist]/`
-- `/data/music/[Artist]/`
-
-#### Supported Cover Files
-- `folder.jpg`, `folder.jpeg`, `folder.png`
-- `cover.jpg`, `cover.jpeg`, `cover.png`
-- `artist.jpg`, `artist.jpeg`, `artist.png`
-- `thumb.jpg`, `thumb.jpeg`, `thumb.png`
+#### Supported Cover File Base Names and Extension
+- `folder`, `cover`, `artist`, `thumb`, `front`
+- `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
 
 ### 📁 Predefined Custom Covers
 
-Place custom images in your cover directory (mapped to `/app/cover/`):
+Place custom images in your appdata/cover directory (mapped to `/data/cover/`):
 
 #### Directory Structure Examples
 ```
-/app/cover/
+/data/cover/
 ├── Top Tracks - Jonas.jpg          # Personal playlist (specific user)
 ├── Top Tracks - all.jpg            # Personal playlist (generic fallback)
 ├── Discovery Mix - Sarah.webp      # Personal playlist (specific user)
@@ -234,7 +233,7 @@ Place custom images in your cover directory (mapped to `/app/cover/`):
 
 ### 🔄 Update Covers Feature
 
-Refresh cover art for existing playlists without regenerating them:
+Refresh cover art for existing playlists without regenerating playlists:
 
 #### Web UI Usage
 1. Navigate to **Playlists** page (`/playlists`)
@@ -250,7 +249,7 @@ Refresh cover art for existing playlists without regenerating them:
 - **Error Handling**: Graceful fallbacks with detailed logging
 
 #### When to Use
-- After adding new cover art files to `/app/cover/`
+- After adding new cover art files to `/data/cover/`
 - When Spotify integration settings change
 - After updating music library with new artist folders
 - To fix missing or corrupted cover art
@@ -258,10 +257,16 @@ Refresh cover art for existing playlists without regenerating them:
 ### 🛠️ Cover Art Troubleshooting
 
 #### Custom Generated Covers Not Working
-**Symptoms**: Artist playlists have no cover art or fallback to generic covers
+**Symptoms**: Artist playlists have no cover art or fallback to album or generic covers
 
 **Solutions**:
+1. **Check Artist Primary Image**:
+   - JellyJams tries to fetch the artist's primary image using the Jellyfin API first.
+   - Does the artist have a primary image set in Jellyfin?
+   - Music directory access is not required for this method.
+
 1. **Check Music Directory Access**:
+   - If getting the primary image from the API fails, the next step is searching the artist's directory.
    ```bash
    # Verify Docker volume mount includes music directory
    docker-compose logs jellyjams | grep "music directory"
@@ -274,6 +279,7 @@ Refresh cover art for existing playlists without regenerating them:
    │   ├── folder.jpg          # ✅ This works
    │   ├── cover.png           # ✅ This works
    │   └── Album/
+   │       └── cover.webp      # ✅ Album image used as fallback
    └── Another Artist/
        └── artist.jpeg         # ✅ This works
    ```
@@ -290,19 +296,20 @@ Refresh cover art for existing playlists without regenerating them:
    ```
 
 #### Predefined Covers Not Loading
-**Symptoms**: Custom covers in `/app/cover/` are ignored
+**Symptoms**: Custom covers in `/data/cover/` are ignored
 
 **Solutions**:
 1. **Verify Docker Volume Mount**:
+   - Put your 'cover' directory in your 'appdata' directory.
    ```yaml
    volumes:
-     - /host/path/covers:/app/cover  # Must be mounted
+     - /host/path/appdata:/data  # Must be mounted
    ```
 
 2. **Check File Permissions**:
    ```bash
    # Ensure container can read cover files
-   ls -la /host/path/covers/
+   ls -la /host/path/appdata/cover/
    ```
 
 3. **Verify Exact Naming**:
@@ -311,7 +318,7 @@ Refresh cover art for existing playlists without regenerating them:
    - Include file extensions
 
 4. **Supported Formats**:
-   - `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
+   - `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
    - Other formats may not be recognized
 
 #### Spotify Integration Issues
@@ -406,7 +413,7 @@ The web UI settings page (`/settings`) provides:
 - **User Management** - Select users for personalized playlists
 - **Spotify Integration** - Test Spotify API and view statistics
 - **Live Validation** - Real-time setting validation
-- **Persistent Storage** - Settings saved to `/app/config/settings.json`
+- **Persistent Storage** - Settings saved to `/data/config/settings.json`
 
 ### Settings Priority
 1. **Web UI Settings** (highest priority)
@@ -418,26 +425,32 @@ The web UI settings page (`/settings`) provides:
 ### Required Volumes
 ```yaml
 volumes:
-  - /host/path/playlists:/app/playlists     # Playlist storage
-  - /host/path/logs:/app/logs               # Application logs
-  - /host/path/config:/app/config           # Web UI settings
+  # JellyJames app data (config, logs, cover)
+  - /host/path/appdata:/data
+  # Jellyfin playlists directory for playlist and art management
+  - ${PLAYLIST_DIR_HOST}:/playlists
 ```
 
 ### Optional Volumes
 ```yaml
 volumes:
-  - /host/path/covers:/app/cover            # Custom cover art
+  # Ready-only access to music directory for cover art generation
+  - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
 ```
 
 ### Unraid Configuration
-For Unraid users, use the provided `docker-compose-unraid.yml`:
+For Unraid users, your volumes and associated variables may look something like this:
 
 ```yaml
 volumes:
-  - /mnt/user/appdata/jellyjams/playlists:/app/playlists
-  - /mnt/user/appdata/jellyjams/logs:/app/logs
-  - /mnt/user/appdata/jellyjams/config:/app/config
-  - /mnt/user/appdata/jellyjams/cover:/app/cover
+  - /mnt/user/appdata/jellyjams:/data
+  - ${PLAYLIST_DIR_HOST}:/playlists
+  - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
+```
+```.env
+PLAYLIST_DIR_HOST=-/mnt/user/appdata/jellyfin/data/playlists
+MUSIC_DIR_HOST=/mnt/user/media/data/music
+MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
 ```
 
 ## 📝 Examples
@@ -447,6 +460,7 @@ volumes:
 # .env file for basic setup
 JELLYFIN_URL=http://localhost:8096
 JELLYFIN_API_KEY=your_api_key_here
+PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
 PLAYLIST_TYPES=Genre,Year,Artist
 MAX_TRACKS_PER_PLAYLIST=50
 MIN_TRACKS_PER_PLAYLIST=10
@@ -457,6 +471,9 @@ MIN_TRACKS_PER_PLAYLIST=10
 # .env file for advanced setup
 JELLYFIN_URL=https://jellyfin.example.com
 JELLYFIN_API_KEY=your_api_key_here
+PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
+MUSIC_DIR_HOST=/host/path/to/music
+MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
 
 # Playlist generation
 PLAYLIST_TYPES=Genre,Year,Artist,Personal
@@ -503,20 +520,23 @@ EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
    - Ensure `TRIGGER_LIBRARY_SCAN=true`
    - Check Jellyfin API key permissions
    - Verify playlist folder is accessible
+  
+2. **Playlists not appearing in JellyJams**
+   - Ensure `PLAYLIST_DIR_HOST` = your host path to the Jellyin playlists directory
+   - Verify Jellyfin playlists directory is mapped to /playlists
 
-2. **Cover art not copying**
-   - Check Docker volume mount for `/app/cover`
-   - Verify file permissions on cover directory
+3. **Cover art not copying**
+   - Verify file permissions on cover in your appdata directory
    - Check logs for detailed error messages
 
-3. **Personalized playlists empty**
+4. **Personalized playlists empty**
    - **Install Required Plugin**: Ensure [Jellyfin Playback Reporting Plugin](https://github.com/jellyfin/jellyfin-plugin-playbackreporting) is installed and enabled
    - Increase `PERSONAL_PLAYLIST_MIN_USER_TRACKS`
    - Check user has listening history in Jellyfin
    - Verify user selection in settings
    - Confirm plugin is collecting playback data
 
-4. **Spotify integration not working**
+5. **Spotify integration not working**
    - Test connection in web UI settings
    - Verify Client ID and Secret are correct
    - Check Spotify app permissions
@@ -536,4 +556,4 @@ This provides comprehensive information about:
 
 ---
 
-For additional help, check the application logs at `/app/logs/` or enable debug logging for detailed troubleshooting information.
+For additional help, check the application logs at `/data/logs/` or enable debug logging for detailed troubleshooting information. You may also check the container logs using `docker logs jellyjams` from the host CLI.

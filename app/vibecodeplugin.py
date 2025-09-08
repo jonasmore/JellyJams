@@ -13,11 +13,13 @@ import logging
 import requests
 import schedule
 import signal
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
+from io import BytesIO
 
 # PIL/Pillow imports for custom cover art generation
 try:
@@ -58,10 +60,12 @@ def normalize_name(s: str) -> str:
     return s.strip()
 class Config:
     def __init__(self):
+        # Set constants
+        self.playlist_folder = '/playlists'
+
         # Load environment variables first (as defaults)
         self.jellyfin_url = os.getenv('JELLYFIN_URL', 'http://jellyfin:8096')
         self.api_key = os.getenv('JELLYFIN_API_KEY', '')
-        self.playlist_folder = os.getenv('PLAYLIST_FOLDER', '/app/playlists')
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
         self.generation_interval = int(os.getenv('GENERATION_INTERVAL', '24'))
         self.max_tracks_per_playlist = int(os.getenv('MAX_TRACKS_PER_PLAYLIST', '100'))
@@ -111,7 +115,7 @@ class Config:
     
     def load_web_ui_settings(self):
         """Load settings from web UI JSON file - these take precedence over environment variables"""
-        config_file = '/app/config/settings.json'
+        config_file = '/data/config/settings.json'
         try:
             if Path(config_file).exists():
                 with open(config_file, 'r') as f:
@@ -521,14 +525,16 @@ class SpotifyClient:
         import time
         start_time = time.time()
         self.stats['total_attempts'] += 1
+        exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
         
         try:
             # Check if cover art already exists
-            cover_path = playlist_dir / 'cover.jpg'
-            if cover_path.exists():
-                self.logger.debug(f"Cover art already exists for {artist_name}")
-                self.stats['successful_downloads'] += 1
-                return True
+            for ext in exts:
+                cover_path = playlist_dir / f"cover{ext}"
+                if cover_path.exists():
+                    self.logger.debug(f"Cover art already exists for {artist_name}")
+                    self.stats['successful_downloads'] += 1
+                    return True
             
             # Search for Spotify playlist
             playlist_info = self.search_artist_playlist(artist_name)
@@ -628,40 +634,40 @@ class SpotifyClient:
 def setup_logging(config: Config):
     """Setup logging configuration with timestamps - ensure all logs visible in Docker"""
     # Ensure log directory exists
-    log_dir = Path('/app/logs')
+    log_dir = Path('/data/logs')
+    log_level_num = logging._nameToLevel[config.log_level]
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         print(f"📁 Log directory created/verified: {log_dir}")
     except Exception as e:
         print(f"⚠️ Could not create log directory {log_dir}: {e}")
     
-    # Force DEBUG level for comprehensive logging
-    log_level = logging.DEBUG
-    print(f"🔧 Forcing DEBUG level logging for comprehensive output")
+    # Set log level according to settings/default
+    print(f"🔧 Log level is set to {config.log_level}")
     
     # Create formatters with timestamps
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     # Configure root logger to catch ALL logging
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(log_level_num)
     root_logger.handlers.clear()
     
     # Console handler for Docker logs
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(log_level_num)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     
     # Also setup specific jellyjams logger
     logger = logging.getLogger('jellyjams')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(log_level_num)
     logger.propagate = True  # Ensure it propagates to root logger
     
     # File handler (with error handling)
     try:
         file_handler = logging.FileHandler(log_dir / 'jellyjams.log')
-        file_handler.setLevel(logging.DEBUG)
+        file_handler.setLevel(log_level_num)
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
         print(f"📝 File logging enabled: {log_dir / 'jellyjams.log'}")
@@ -673,7 +679,7 @@ def setup_logging(config: Config):
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('requests').setLevel(logging.WARNING)
     
-    print(f"🔧 Comprehensive logging initialized at DEBUG level with timestamps")
+    print(f"🔧 Logging initialized at {config.log_level} level with timestamps")
     print(f"📊 Root logger handlers: {len(root_logger.handlers)} ({[type(h).__name__ for h in root_logger.handlers]})")
     print(f"📊 JellyJams logger propagate: {logger.propagate}")
     
@@ -733,6 +739,50 @@ class JellyfinAPI:
             self.logger.error(f"Failed to connect to Jellyfin: {e}")
             return False
 
+    def get_artist_image_by_name(self, artist_name: str, timeout: float = 10.0) -> Optional[bytes]:
+        if not artist_name:
+            raise ValueError("artist_name is required")
+
+        url = f"{self.config.jellyfin_url}/Artists/{artist_name}/Images/Primary/0"
+        params = {"format": "webp", "maxWidth": 600, "maxHeight": 600}
+
+        # Merge in an Accept header that prefers webp.
+        headers = {"Accept": "image/webp,image/*;q=0.8,*/*;q=0.5"}
+
+        try:
+            resp = self.session.get(url, params=params, headers=headers, timeout=timeout)
+            if resp.status_code == 404:
+                self.logger.info("Artist not found or no primary image: %r", artist_name)
+                return None
+            resp.raise_for_status()
+
+            ctype = resp.headers.get("Content-Type", "").lower()
+            if "image" not in ctype:
+                # Jellyfin should return an image; if not, log a short body preview
+                preview = ""
+                try:
+                    preview = (resp.text or "")[:300]
+                except Exception:
+                    pass
+                self.logger.error("Unexpected response (Content-Type=%s). Body: %s", ctype, preview)
+                raise requests.exceptions.RequestException(
+                    f"Unexpected response (Content-Type={ctype}). Body: {preview}"
+                )
+            return resp.content
+
+        except requests.exceptions.HTTPError as e:
+            # Keep an informative log (with short body preview, if any)
+            body_preview = ""
+            try:
+                body_preview = (getattr(e.response, "text", "") or "")[:300]
+            except Exception:
+                pass
+            self.logger.error("Jellyfin HTTP error for %s: %s | %s", url, e, body_preview)
+            raise
+        except requests.exceptions.RequestException as e:
+            self.logger.error("Failed fetching artist image: %s", e)
+            raise
+    
     def get_users(self) -> List[Dict]:
         """Get all users from Jellyfin"""
         try:
@@ -1033,9 +1083,7 @@ class PlaylistGenerator:
     def copy_custom_cover_art(self, playlist_name: str, playlist_dir: Path) -> bool:
         """Copy custom cover art from /app/cover/ directory with fallback system and extension preservation"""
         try:
-            # Define the source cover directory (matches Docker volume mount)
-            cover_source_dir = Path("/app/cover")
-            
+            cover_source_dir = Path("/data/cover")
             self.logger.info(f"Looking for custom cover art for playlist: {playlist_name}")
             self.logger.info(f"Checking cover source directory: {cover_source_dir}")
             
@@ -1051,7 +1099,7 @@ class PlaylistGenerator:
                 self.logger.warning(f"Could not list cover directory contents: {e}")
             
             # Look for cover image with playlist name (try common extensions)
-            extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+            extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif', '.bmp']
             source_image = None
             found_extension = None
             
@@ -1145,32 +1193,26 @@ class PlaylistGenerator:
             decade = playlist_name.replace("Back to the ", "").strip()
             self.logger.info(f"🗓️ Looking for decade-specific cover art for: {decade}")
             
-            # Define the source cover directory
-            cover_source_dir = Path("/app/cover")
+            cover_source_dir = Path("/data/cover")
             
             if not cover_source_dir.exists():
                 self.logger.warning(f"Cover source directory does not exist: {cover_source_dir}")
                 return False
             
             # Look for decade-specific cover art files in multiple naming formats
-            decade_cover_files = [
-                # Full playlist name format (e.g., "Back to the 1990s.jpg")
-                f"{playlist_name}.jpg",
-                f"{playlist_name}.jpeg",
-                f"{playlist_name}.png",
-                # Decade-only format (e.g., "1990s-cover.jpg")
-                f"{decade}-cover.jpg",
-                f"{decade}-cover.jpeg", 
-                f"{decade}-cover.png"
-            ]
+            # playlist_name is like "Back to the 1990s.jpg"
+            # Decade-only format is like "1990s-cover.jpg"
+            names = [playlist_name, f"{decade}-cover"]
+            exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
             
             source_image = None
-            for cover_file in decade_cover_files:
-                potential_file = cover_source_dir / cover_file
-                if potential_file.exists() and potential_file.is_file():
-                    source_image = potential_file
-                    self.logger.info(f"🖼️ Found decade cover art: {source_image}")
-                    break
+            for base in names:
+                for ext in exts:
+                    candidate = cover_source_dir / f"{file}{ext}"
+                    if candidate.exists() and candidate.is_file():
+                        source_image = candidate
+                        self.logger.info(f"🖼️ Found decade cover art: {source_image}")
+                        break
             
             # If no specific decade cover found, try fallback for pre-1900s music
             if not source_image and decade.endswith('s'):
@@ -1178,14 +1220,8 @@ class PlaylistGenerator:
                     decade_year = int(decade[:-1])  # Remove 's' and convert to int
                     if decade_year < 1900:
                         self.logger.info(f"🕰️ Decade {decade} is before 1900s, trying 1800s fallback...")
-                        fallback_files = [
-                            "1800s-cover.jpg",
-                            "1800s-cover.jpeg",
-                            "1800s-cover.png"
-                        ]
-                        
-                        for fallback_file in fallback_files:
-                            potential_fallback = cover_source_dir / fallback_file
+                        for ext in exts:
+                            potential_fallback = cover_source_dir / f"1800s-cover{ext}"
                             if potential_fallback.exists() and potential_fallback.is_file():
                                 source_image = potential_fallback
                                 self.logger.info(f"🖼️ Found 1800s fallback cover art: {source_image}")
@@ -1227,30 +1263,23 @@ class PlaylistGenerator:
         try:
             self.logger.info(f"🎵 Looking for genre cover art for: {genre_name}")
             
-            # Define the source cover directory
-            cover_source_dir = Path("/app/cover")
+            cover_source_dir = Path("/data/cover")
             
             if not cover_source_dir.exists():
                 self.logger.warning(f"Cover source directory does not exist: {cover_source_dir}")
                 return False
             
             # First, try to find predefined genre cover art
-            predefined_cover_files = [
-                f"{genre_name} Radio.jpg",
-                f"{genre_name} Radio.jpeg",
-                f"{genre_name} Radio.png",
-                f"{genre_name}.jpg",
-                f"{genre_name}.jpeg",
-                f"{genre_name}.png"
-            ]
-            
+            names = [f"{genre_name} Radio", genre_name]
+            exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
             source_image = None
-            for cover_file in predefined_cover_files:
-                potential_file = cover_source_dir / cover_file
-                if potential_file.exists() and potential_file.is_file():
-                    source_image = potential_file
-                    self.logger.info(f"🖼️ Found predefined genre cover art: {source_image}")
-                    break
+            for base in names:
+                for ext in exts:
+                    potential_file = cover_source_dir / f"{base}{ext}"
+                    if potential_file.exists() and potential_file.is_file():
+                        source_image = potential_file
+                        self.logger.info(f"🖼️ Found predefined genre cover art: {source_image}")
+                        break
             
             # If predefined cover found, copy it directly
             if source_image:
@@ -1275,27 +1304,20 @@ class PlaylistGenerator:
             # If no predefined cover found, generate one using "Fallback Radio.jpg" background
             self.logger.info(f"🎨 No predefined cover found, generating custom genre cover...")
             
-            # Look for "Fallback Radio.jpg" background template
-            background_files = [
-                "Fallback Radio.jpg",
-                "Fallback Radio.jpeg",
-                "Fallback Radio.png"
-            ]
-            
             background_image = None
-            for bg_file in background_files:
-                potential_bg = cover_source_dir / bg_file
+            for ext in exts:
+                potential_bg = cover_source_dir / f"Fallback Radio{ext}"
                 if potential_bg.exists() and potential_bg.is_file():
                     background_image = potential_bg
                     self.logger.info(f"🖼️ Found background template: {background_image}")
                     break
             
             if not background_image:
-                self.logger.warning(f"❌ No 'Fallback Radio.jpg' background template found for genre cover generation")
+                self.logger.warning(f"❌ No 'Fallback Radio' background template found for genre cover generation")
                 return False
             
             # Generate custom genre cover with text overlay
-            destination_image = playlist_dir / "cover.jpg"
+            destination_image = playlist_dir / "cover.webp"
             success = self._generate_genre_cover_art(background_image, genre_name, destination_image)
             
             if success:
@@ -1390,7 +1412,7 @@ class PlaylistGenerator:
                 draw.text((x2, y2), line2, font=font, fill=text_color)
                 
                 # Save the final image
-                background.save(destination, "JPEG", quality=95)
+                background.save(destination, "JPEG", quality=85)
                 
                 self.logger.info(f"✅ Generated genre cover art: {destination}")
                 return True
@@ -1402,7 +1424,7 @@ class PlaylistGenerator:
             return False
     
     def _try_artist_folder_fallback(self, playlist_name: str, playlist_dir: Path) -> bool:
-        """Generate custom cover art with 'This is <artist>' text overlay from artist folder images"""
+        """Generate custom cover art with 'This is <artist>' text overlay from artist images"""
         try:
             # Only apply this fallback for artist playlists
             if not playlist_name.startswith("This is "):
@@ -1414,11 +1436,11 @@ class PlaylistGenerator:
             
             # Find artist folder and source image
             source_cover = self._find_artist_cover_image(artist_name)
-            if not source_cover:
+            if source_cover is None:
                 return False
             
             # Generate custom cover art with text overlay
-            destination_cover = playlist_dir / "folder.png"
+            destination_cover = playlist_dir / "folder.webp"
             success = self._generate_custom_cover_art(source_cover, artist_name, destination_cover)
             
             if success:
@@ -1427,10 +1449,8 @@ class PlaylistGenerator:
             else:
                 # Fallback to simple copy if text overlay fails
                 self.logger.warning("Text overlay failed, falling back to simple copy")
-                import shutil
-                file_extension = source_cover.suffix
-                fallback_destination = playlist_dir / f"folder{file_extension}"
-                shutil.copy2(source_cover, fallback_destination)
+                fallback_destination = playlist_dir / "folder.webp"
+                Image.open(BytesIO(source_cover)).save(fallback_destination)
                 
                 # Ensure cover art is world-readable on host mounts
                 try:
@@ -1447,102 +1467,19 @@ class PlaylistGenerator:
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")
             return False
     
-    def _find_artist_cover_image(self, artist_name: str) -> Path:
-        """Find cover image in artist folder using Jellyfin API and common paths"""
+    def _find_artist_cover_image(self, artist_name: str) -> Optional[bytes]:
+        """First, try getting artist image from Jellyfin API"""
+        artist_image = self.jellyfin.get_artist_image_by_name(artist_name)
+        if not (artist_image is None):
+            return artist_image
+
+        """Else, search artist folder for image"""
         self.logger.debug(f"🔍 Searching for artist folder: {artist_name}")
-        
         # First try to get artist info from Jellyfin API
         artist_path = self._get_artist_path_from_jellyfin(artist_name)
         if artist_path:
             self.logger.debug(f"📡 Got artist path from Jellyfin API: {artist_path}")
-            cover_image = self._find_cover_in_directory(artist_path)
-            if cover_image:
-                return cover_image
-        
-        # Fallback to common paths including Unraid structure
-        possible_base_paths = [
-            Path("/mnt/user/media/data/music"),  # Unraid music path
-            Path("/app/music"),  # Common Docker mount point
-            Path("/music"),      # Alternative mount point
-            Path("/media"),      # Another common mount
-            Path("/data/music"), # Data directory mount
-            Path("/mnt/music"),  # Mount point variant
-            Path("/jellyfin/music"), # Jellyfin specific
-        ]
-        
-        # Debug: Show which paths exist
-        self.logger.debug(f"📁 Checking base paths for artist folders:")
-        for base_path in possible_base_paths:
-            exists = base_path.exists()
-            self.logger.debug(f"  {base_path}: {'✅ exists' if exists else '❌ not found'}")
-            if exists:
-                try:
-                    # Show first few directories as examples
-                    dirs = [d.name for d in base_path.iterdir() if d.is_dir()][:5]
-                    self.logger.debug(f"    Sample directories: {dirs}")
-                except Exception as e:
-                    self.logger.debug(f"    Cannot list directories: {e}")
-        
-        # Try to find artist folder in various locations
-        artist_folder = None
-        for base_path in possible_base_paths:
-            if not base_path.exists():
-                continue
-                
-            self.logger.debug(f"🔍 Searching in: {base_path}")
-            
-            # Try direct artist folder
-            potential_artist_folder = base_path / artist_name
-            self.logger.debug(f"  Trying exact match: {potential_artist_folder}")
-            if potential_artist_folder.exists() and potential_artist_folder.is_dir():
-                artist_folder = potential_artist_folder
-                self.logger.debug(f"  ✅ Found exact match!")
-                break
-            
-            # Try to find artist folder with case-insensitive search
-            try:
-                self.logger.debug(f"  Trying case-insensitive search...")
-                found_dirs = []
-                for item in base_path.iterdir():
-                    if item.is_dir():
-                        found_dirs.append(item.name)
-                        if item.name.lower() == artist_name.lower():
-                            artist_folder = item
-                            self.logger.debug(f"  ✅ Found case-insensitive match: {item}")
-                            break
-                
-                if not artist_folder:
-                    # Show some directories for debugging
-                    sample_dirs = found_dirs[:10]
-                    self.logger.debug(f"  No match found. Sample directories: {sample_dirs}")
-                
-                if artist_folder:
-                    break
-            except Exception as e:
-                self.logger.debug(f"  Error searching {base_path}: {e}")
-                continue
-        
-        if not artist_folder:
-            self.logger.debug(f"❌ No artist folder found for: {artist_name}")
-            return None
-        
-        self.logger.info(f"Found artist folder: {artist_folder}")
-        
-        # Look for folder.jpg or other cover art files in the artist folder
-        cover_files = [
-            "folder.jpg", "folder.jpeg", "folder.png",
-            "cover.jpg", "cover.jpeg", "cover.png", 
-            "artist.jpg", "artist.jpeg", "artist.png",
-            "thumb.jpg", "thumb.jpeg", "thumb.png"
-        ]
-        
-        for cover_file in cover_files:
-            potential_cover = artist_folder / cover_file
-            if potential_cover.exists() and potential_cover.is_file():
-                self.logger.info(f"Found artist cover art: {potential_cover}")
-                return potential_cover
-        
-        self.logger.debug(f"No cover art files found in artist folder: {artist_folder}")
+            return self._find_cover_in_directory(artist_path)
         return None
     
     def _get_artist_path_from_jellyfin(self, artist_name: str) -> Path:
@@ -1599,27 +1536,13 @@ class PlaylistGenerator:
 
         return None
     
-    def _find_cover_in_directory(self, directory_path: Path) -> Path:
-        """Find cover art files in a specific directory"""
-        if not directory_path or not directory_path.exists():
-            return None
-        
-        self.logger.debug(f"🔍 Searching for cover art in: {directory_path}")
-        
-        # Look for cover art files in the directory
-        cover_files = [
-            "folder.jpg", "folder.jpeg", "folder.png",
-            "cover.jpg", "cover.jpeg", "cover.png", 
-            "artist.jpg", "artist.jpeg", "artist.png",
-            "thumb.jpg", "thumb.jpeg", "thumb.png"
-        ]
-        
-        for cover_file in cover_files:
-            potential_cover = directory_path / cover_file
-            if potential_cover.exists() and potential_cover.is_file():
-                self.logger.info(f"🖼️ Found cover art: {potential_cover}")
-                return potential_cover
-        
+    def _find_cover_in_directory(self, directory_path: Path) -> Optional[bytes]:
+        pattern = re.compile(r"^(folder|cover|artist|thumb|front)\.(jpg|jpeg|png|webp|avif|bmp)$", re.IGNORECASE)
+        for root, dirs, files in os.walk(directory_path):
+            for fname in files:
+                if pattern.match(fname):
+                    self.logger.info(f"🖼️ Found cover art: {Path(root) / fname}")
+                    return (Path(root) / fname).read_bytes()
         self.logger.debug(f"No cover art files found in: {directory_path}")
         return None
     
@@ -1660,7 +1583,7 @@ class PlaylistGenerator:
             # Fallback: remove all non-ASCII characters
             return ''.join(char for char in text if ord(char) < 128)
     
-    def _generate_custom_cover_art(self, source_image: Path, artist_name: str, destination: Path) -> bool:
+    def _generate_custom_cover_art(self, source_image: bytes, artist_name: str, destination: Path) -> bool:
         """Generate custom cover art with 'This is <artist>' text overlay using multi-stage scaling approach"""
         try:
             import signal
@@ -1676,7 +1599,7 @@ class PlaylistGenerator:
             signal.alarm(10)  # 10 second timeout
             
             # Open the source image
-            with Image.open(source_image) as img:
+            with Image.open(BytesIO(source_image)) as img:
                 # Convert to RGB if needed
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
@@ -1810,7 +1733,7 @@ class PlaylistGenerator:
                 final_img.paste(text_img, (paste_x, paste_y), text_img)
                 
                 # Save the final image as PNG
-                final_img.save(destination, 'PNG', quality=95)
+                final_img.save(destination, 'webp')
                 
                 # Clear timeout
                 signal.alarm(0)
@@ -1980,6 +1903,18 @@ class PlaylistGenerator:
     
         return sanitized
     
+    def _jellyfin_playlist_dir(self, playlist_name: str) -> str:
+        """
+        Replace invalid filename characters with spaces as Jellyfin does so that
+        the playlist and corresponding image are saved in the same directory.
+          - Characters: \ / : * ? " < > | and ASCII control chars (0–31)
+        """
+        invalid_chars = r'<>:"/\\|?*\x00-\x1F'
+        # Replace invalid chars with a space
+        sanitized = re.sub(f"[{invalid_chars}]", " ", playlist_name).strip()
+        self.logger.info(f"🧹 Sanitized playlist sub-directory: '{sanitized}'")
+        return sanitized.strip()
+    
     def save_playlist(self, playlist_type: str, name: str, tracks: List[Dict], user_id: str = None):
         """Save playlist using Jellyfin's REST API with proper privacy controls and custom cover art"""
         self.logger.info(f"=== STARTING PLAYLIST CREATION ===")
@@ -1988,6 +1923,7 @@ class PlaylistGenerator:
         
         # Sanitize the playlist name to prevent filesystem errors
         sanitized_name = self._sanitize_playlist_name(name)
+        playlist_subdir = self._jellyfin_playlist_dir(sanitized_name)
         self.logger.info(f"Sanitized Playlist Name: {sanitized_name}")
         self.logger.info(f"Track Count: {len(tracks)}")
         self.logger.info(f"User ID: {user_id}")
@@ -2043,9 +1979,9 @@ class PlaylistGenerator:
             if result['success']:
                 self.logger.info(f"✅ Successfully created {privacy_text} playlist '{sanitized_name}' with {result['track_count']} tracks")
                 
-                # Create directory for cover art storage (use sanitized name for filesystem)
+                # Create directory for cover art storage (use Jellyfin-style sanitized name for filesystem)
                 self.logger.debug(f"Creating directory with sanitized name: {sanitized_name}")
-                playlist_dir = Path(self.config.playlist_folder) / sanitized_name
+                playlist_dir = Path(self.config.playlist_folder) / playlist_subdir
                 self.logger.debug(f"Full directory path: {playlist_dir}")
                 
                 try:
@@ -2117,22 +2053,19 @@ class PlaylistGenerator:
                             self.logger.info(f"🎨 Generating custom cover art for artist: {artist_name}")
                             
                             # First, find the source image to use as base
-                            artist_cover_path = self._find_artist_cover_image(artist_name)
-                            if artist_cover_path:
+                            artist_image = self._find_artist_cover_image(artist_name)
+                            if not (artist_image is None):
                                 # Generate custom cover art with text overlay
-                                cover_dest = playlist_dir / 'cover.jpg'
-                                if self._generate_custom_cover_art(artist_cover_path, artist_name, cover_dest):
+                                cover_dest = playlist_dir / 'cover.webp'
+                                if self._generate_custom_cover_art(artist_image, artist_name, cover_dest):
                                     cover_added = True
                                     self.logger.info(f"✅ Generated custom cover art for artist: {artist_name}")
                                 else:
                                     self.logger.info(f"❌ Failed to generate custom cover art for artist: {artist_name}")
                                     # Fallback: copy the original image directly
-                                    self.logger.info(f"🖼️ Fallback: Using original artist cover image: {artist_cover_path}")
-                                    import shutil
-                                    file_extension = artist_cover_path.suffix
-                                    fallback_destination = playlist_dir / f"folder{file_extension}"
-                                    shutil.copy2(artist_cover_path, fallback_destination)
-                                    
+                                    self.logger.info(f"🖼️ Fallback: Using original artist cover image")
+                                    fallback_destination = playlist_dir / "folder.webp"
+                                    Image.open(BytesIO(artist_image)).save(fallback_destination)
                                     # Ensure cover art is world-readable on host mounts
                                     try:
                                         os.chmod(fallback_destination, 0o664)

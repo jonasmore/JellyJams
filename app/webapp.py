@@ -23,10 +23,11 @@ app.secret_key = os.urandom(24)
 
 # Global configuration
 config = Config()
+log_level_num = logging._nameToLevel[config.log_level]
 
-# Setup comprehensive logging for web UI
+# Setup logging for web UI
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=log_level_num,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
@@ -40,8 +41,8 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 logger = logging.getLogger('JellyJams.WebUI')
-logger.setLevel(logging.DEBUG)
-logger.info("🌐 JellyJams Web UI logging initialized")
+logger.setLevel(log_level_num)
+logger.info(f"🌐 JellyJams Web UI logging initialized (level = {config.log_level})")
 
 # Serve logo asset
 @app.route('/assets/logo.png')
@@ -55,7 +56,7 @@ def logo():
 
 class ConfigManager:
     def __init__(self):
-        self.config_file = '/app/config/settings.json'
+        self.config_file = '/data/config/settings.json'
         self.ensure_config_dir()
     
     def ensure_config_dir(self):
@@ -264,7 +265,7 @@ class DiscordNotifier:
         else:
             # Fall back to web UI settings
             try:
-                config_file = '/app/config/settings.json'
+                config_file = '/data/config/settings.json'
                 if Path(config_file).exists():
                     with open(config_file, 'r') as f:
                         settings = json.load(f)
@@ -466,7 +467,7 @@ def logs():
         except Exception as e:
             return f"Error reading logs: {e}"
 
-    log_file = '/app/logs/jellyjams.log'
+    log_file = '/data/logs/jellyjams.log'
     log_content = read_last_lines(log_file, 100)
     return render_template('logs.html', log_content=log_content)
 
@@ -479,7 +480,7 @@ def api_logs_tail():
     except (TypeError, ValueError):
         lines = 100
 
-    log_file = '/app/logs/jellyjams.log'
+    log_file = '/data/logs/jellyjams.log'
 
     def read_last_lines(path: str, n: int) -> str:
         try:
@@ -574,8 +575,8 @@ def api_settings():
 
 def save_web_ui_settings(new_settings):
     """Save settings to web UI settings file"""
-    config_file = '/app/config/settings.json'
-    config_dir = Path('/app/config')
+    config_file = '/data/config/settings.json'
+    config_dir = Path('/data/config')
     
     try:
         # Ensure config directory exists
@@ -786,13 +787,14 @@ def api_cover_art(playlist_name):
         
         # Search order: folder.* first (what generator writes), then cover.*
         names = ['folder', 'cover']
-        exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+        exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.avif']
         mimetypes = {
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',
             '.png': 'image/png',
             '.webp': 'image/webp',
-            '.bmp': 'image/bmp'
+            '.bmp': 'image/bmp',
+            '.avif': 'image/avif'
         }
         
         try:
@@ -1422,7 +1424,7 @@ def get_detailed_playlist_info():
                         try:
                             # Consider cover image if present as an additional hint
                             for base in ['folder', 'cover']:
-                                for ext in ['.png', '.jpg', '.jpeg']:
+                                for ext in ['.png', '.jpg', '.jpeg', '.webp', '.avif']:
                                     cf = playlist_path / f"{base}{ext}"
                                     if cf.exists():
                                         cfs = cf.stat()
@@ -1601,4 +1603,5 @@ def get_jellyfin_metadata(jellyfin_api):
         return {'genres': [], 'years': [], 'artists': []}
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    WEB_PORT = int(os.getenv('WEB_PORT', '5000'))
+    app.run(host='0.0.0.0', port=WEB_PORT, debug=True)
