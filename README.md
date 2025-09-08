@@ -53,10 +53,12 @@ docker run -p 5000:5000 jonasmore/jellyjams
 - **Custom Generated Covers** - "This is [Artist]" text overlays on artist folder images
 - **Spotify Integration** - Automatic artist playlist cover downloads from Spotify
 - **Predefined Custom Covers** - Manual cover art for specific playlists
-- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.jpg")
-- **Artist Folder Integration** - Uses existing folder.jpg from music directories
+- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.ext")
+- **Multi-format Support** - Searches for images in multiple formats (JPG, JPEG, PNG, WebP, AVIF, BMP)
+- **Artist Folder Integration** - Uses existing folder.ext from music directories
 - **Unicode Support** - Handles special characters in artist names (alt‐J, Sigur Rós, etc.)
-- **Extension Preservation** - Maintains original image formats (PNG, JPG)
+- **Extension Preservation** - Maintains original image format when copying.
+- **Generated Image Format** - Saves generated images as WebP for high quality and compression.
 
 ### 🌐 Modern Web Interface
 - **Beautiful Dark Theme** - Modern, responsive design
@@ -108,21 +110,23 @@ WEBUI_BASIC_AUTH_PASSWORD=your_password
 - **Custom Generated Covers** - "This is [Artist]" text overlays on artist folder images
 - **Spotify Integration** - Automatic artist playlist cover downloads from Spotify
 - **Predefined Custom Covers** - Manual cover art for specific playlists
-- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.jpg")
-- **Artist Folder Integration** - Uses existing folder.jpg from music directories
+- **Smart Fallbacks** - Generic covers per playlist type ("Top Tracks - all.ext")
+- **Multi-format Support** - Searches for images in multiple formats (JPG, JPEG, PNG, WebP, AVIF, BMP)
+- **Artist Folder Integration** - Uses existing folder.ext from music directories
 - **Unicode Support** - Handles special characters in artist names (alt‐J, Sigur Rós, etc.)
-- **Extension Preservation** - Maintains original image formats (PNG, JPG)
+- **Extension Preservation** - Maintains original image format when copying.
+- **Generated Image Format** - Saves generated images as WebP for high quality and compression.
 
 ### 🎯 Cover Art Priority System
 1. **Custom Generated Covers** (Artist playlists)
 2. **Spotify Cover Art** (Artist playlists, if enabled)
 3. **Predefined Custom Covers** (Manual covers)
-4. **Artist Folder Fallback** (Uses existing folder.jpg)
+4. **Artist Folder Fallback** (Uses existing folder.ext)
 5. **Generic Fallbacks** (Type-specific defaults)
 
 #### 🖼️ Custom Generated Covers
 For artist playlists, JellyJams automatically generates professional "This is [Artist]" covers:
-- Uses artist's existing folder.jpg as background
+- Uses artist's existing folder.ext as background
 - Adds stylized text overlay with adaptive colors
 - Handles Unicode characters (alt‐J, Sigur Rós, Mötley Crüe)
 - High-quality PNG output with text shadows
@@ -130,17 +134,17 @@ For artist playlists, JellyJams automatically generates professional "This is [A
 
 #### 📁 Predefined Custom Covers
 Place custom images in your cover directory (mapped to `/app/cover`):
-- Exact playlist name matching: `"Top Tracks - Jonas.jpg"`
-- Generic fallbacks: `"Top Tracks - all.png"`
-- Decade-specific covers: `"Back to the 1990s.jpg"`
-- Genre-specific covers: `"Jazz Radio.jpg"`
+- Exact playlist name matching: `"Top Tracks - Jonas.ext"`
+- Generic fallbacks: `"Top Tracks - all.ext"`
+- Decade-specific covers: `"Back to the 1990s.ext"`
+- Genre-specific covers: `"Jazz Radio.ext"`
 
 #### 🎵 Artist Folder Integration
 JellyJams can use existing cover art from your music library:
-- Searches for `folder.jpg`, `cover.jpg`, `artist.jpg` in artist directories
-- Supports multiple music directory paths (`/app/music`, `/music`, `/media`, etc.)
+- Searches for `folder.ext`, `cover.ext`, `artist.ext` in artist directories
+- You set the music directory path (in .env) to the same path you set in Jellyfin
 - Case-insensitive artist folder matching
-- Multiple image format support (JPG, PNG, WebP)
+- Multiple image format support (JPG, PNG, WebP, AVIF, BMP)
 
 #### 🔄 Update Covers Feature
 Refresh cover art for existing playlists without regenerating:
@@ -164,14 +168,14 @@ JellyJams automatically triggers a Jellyfin media library scan after playlist cr
 JellyJams creates playlists in the following format:
 
 ```
-📁 Playlists/
-├── Rock Radio/
+📁/playlists/
+├── 📁Rock Radio/
 │   └── playlist.xml
-├── Jazz Radio/
+├── 📁Jazz Radio/
 │   └── playlist.xml
-├── Back to the 1970s/
+├── 📁Back to the 1970s/
 │   └── playlist.xml
-└── This is The Beatles!/
+└── 📁This is The Beatles!/
     └── playlist.xml
 ```
 
@@ -206,13 +210,17 @@ services:
     image: jonasmore/jellyjams:latest
     container_name: jellyjams
     environment:
+      # Default values are set here like ${VAR_NAME:-DEFAULT_VALUE}
+      # in case they aren't provided in the .env file. If you use the
+      # .env file, there is no need to change the default values.
+      
       # Essential container settings (not configurable via web UI)
-      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_URL=${JELLYFIN_URL:-http://jellyfin:8096}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - ENABLE_WEB_UI=${ENABLE_WEB_UI}
-      - WEB_PORT=${WEB_PORT}
+      - ENABLE_WEB_UI=${ENABLE_WEB_UI:-true}
+      - WEB_PORT=${WEB_PORT:-5000}
       # Default fallback values (web UI settings will override these)
-      - LOG_LEVEL=${LOG_LEVEL}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
       - GENERATION_INTERVAL=${GENERATION_INTERVAL}
       - MAX_TRACKS_PER_PLAYLIST=${MAX_TRACKS_PER_PLAYLIST}
       - MIN_TRACKS_PER_PLAYLIST=${MIN_TRACKS_PER_PLAYLIST}
@@ -234,7 +242,7 @@ services:
       # Jellyfin playlists directory for playlist and art management
       - ${PLAYLIST_DIR_HOST}:/playlists
     ports:
-      - "${WEB_PORT}:${WEB_PORT}"
+      - "${WEB_PORT:-5000}:${WEB_PORT:-5000}"
     restart: unless-stopped
 ```
 
@@ -266,6 +274,7 @@ JellyJams uses the Jellyfin REST API to:
 - Handle semicolon-separated genre strings
 - Test connection status
 - Retrieve audio item details
+- Retrieve the primary image of artists
 
 ## 🎨 Web UI Features
 

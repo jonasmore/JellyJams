@@ -174,13 +174,13 @@ DISCOVERY_MAX_SONGS_PER_ARTIST=3
 ### Custom Cover Art
 JellyJams supports custom playlist covers with intelligent fallback:
 
-1. **Exact Match**: `"Top Tracks - Jonas.jpg"`
-2. **Generic Fallback**: `"Top Tracks - all.png"`
+1. **Exact Match**: `"Top Tracks - Jonas.ext"`
+2. **Generic Fallback**: `"Top Tracks - all.ext"`
 3. **Spotify Fallback**: For artist playlists
 
-**Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
+**Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
 
-**Docker Volume**: Map your cover directory to `/app/cover`
+**Docker Volume**: Put your 'cover' directory in the directory that you map to `/data`
 
 #### Other Playlist Types
 1. **Predefined Custom Covers** - Exact name matching
@@ -193,17 +193,15 @@ For artist playlists, JellyJams automatically generates professional covers:
 
 | Feature | Description |
 |---------|-------------|
-| **Source Image** | Uses artist's `folder.jpg` from music directory |
+| **Source Image** | Uses artist's `folder.ext` from music directory |
 | **Text Overlay** | "This is [Artist]" with adaptive colors |
 | **Unicode Support** | Handles special characters (alt‐J, Sigur Rós, Mötley Crüe) |
-| **Quality** | High-resolution PNG/JPG |
+| **Quality** | High-resolution Webp |
 | **Color Analysis** | Automatic brightness detection for optimal contrast |
 
-#### Supported Cover Files
-- `folder.jpg`, `folder.jpeg`, `folder.png`
-- `cover.jpg`, `cover.jpeg`, `cover.png`
-- `artist.jpg`, `artist.jpeg`, `artist.png`
-- `thumb.jpg`, `thumb.jpeg`, `thumb.png`
+#### Supported Cover File Base Names and Extension
+- `folder`, `cover`, `artist`, `thumb`, `front`
+- `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
 
 ### 📁 Predefined Custom Covers
 
@@ -259,10 +257,16 @@ Refresh cover art for existing playlists without regenerating playlists:
 ### 🛠️ Cover Art Troubleshooting
 
 #### Custom Generated Covers Not Working
-**Symptoms**: Artist playlists have no cover art or fallback to generic covers
+**Symptoms**: Artist playlists have no cover art or fallback to album or generic covers
 
 **Solutions**:
+1. **Check Artist Primary Image**:
+   - JellyJams tries to fetch the artist's primary image using the Jellyfin API first.
+   - Does the artist have a primary image set in Jellyfin?
+   - Music directory access is not required for this method.
+
 1. **Check Music Directory Access**:
+   - If getting the primary image from the API fails, the next step is searching the artist's directory.
    ```bash
    # Verify Docker volume mount includes music directory
    docker-compose logs jellyjams | grep "music directory"
@@ -275,6 +279,7 @@ Refresh cover art for existing playlists without regenerating playlists:
    │   ├── folder.jpg          # ✅ This works
    │   ├── cover.png           # ✅ This works
    │   └── Album/
+   │       └── cover.webp      # ✅ Album image used as fallback
    └── Another Artist/
        └── artist.jpeg         # ✅ This works
    ```
@@ -295,6 +300,7 @@ Refresh cover art for existing playlists without regenerating playlists:
 
 **Solutions**:
 1. **Verify Docker Volume Mount**:
+   - Put your 'cover' directory in your 'appdata' directory.
    ```yaml
    volumes:
      - /host/path/appdata:/data  # Must be mounted
@@ -303,7 +309,7 @@ Refresh cover art for existing playlists without regenerating playlists:
 2. **Check File Permissions**:
    ```bash
    # Ensure container can read cover files
-   ls -la /host/path/appdata/covers/
+   ls -la /host/path/appdata/cover/
    ```
 
 3. **Verify Exact Naming**:
@@ -312,7 +318,7 @@ Refresh cover art for existing playlists without regenerating playlists:
    - Include file extensions
 
 4. **Supported Formats**:
-   - `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
+   - `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
    - Other formats may not be recognized
 
 #### Spotify Integration Issues
@@ -407,7 +413,7 @@ The web UI settings page (`/settings`) provides:
 - **User Management** - Select users for personalized playlists
 - **Spotify Integration** - Test Spotify API and view statistics
 - **Live Validation** - Real-time setting validation
-- **Persistent Storage** - Settings saved to `/app/config/settings.json`
+- **Persistent Storage** - Settings saved to `/data/config/settings.json`
 
 ### Settings Priority
 1. **Web UI Settings** (highest priority)
@@ -419,7 +425,7 @@ The web UI settings page (`/settings`) provides:
 ### Required Volumes
 ```yaml
 volumes:
-  # JellyJames app data (config, logs, cover art)
+  # JellyJames app data (config, logs, cover)
   - /host/path/appdata:/data
   # Jellyfin playlists directory for playlist and art management
   - ${PLAYLIST_DIR_HOST}:/playlists
@@ -454,7 +460,7 @@ MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
 # .env file for basic setup
 JELLYFIN_URL=http://localhost:8096
 JELLYFIN_API_KEY=your_api_key_here
-PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/data/playlists
+PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
 PLAYLIST_TYPES=Genre,Year,Artist
 MAX_TRACKS_PER_PLAYLIST=50
 MIN_TRACKS_PER_PLAYLIST=10
