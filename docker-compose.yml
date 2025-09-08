@@ -3,6 +3,10 @@ services:
     image: jonasmore/jellyjams:latest
     container_name: jellyjams
     environment:
+      # Default values are set here like ${VAR_NAME:-DEFAULT_VALUE}
+      # in case they aren't provided in the .env file. If you use the
+      # .env file, there is no need to change the default values.
+
       # Essential container settings (not configurable via web UI)
       - JELLYFIN_URL=${JELLYFIN_URL:-http://jellyfin:8096}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
