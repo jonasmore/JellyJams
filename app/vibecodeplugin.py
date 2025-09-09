@@ -506,8 +506,7 @@ class SpotifyClient:
             response.raise_for_status()
             
             # Save to file
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
+            Image.open(BytesIO(response.content)).save(save_path)
             
             self.logger.info(f"Downloaded Spotify cover art: {save_path}")
             return True
@@ -544,7 +543,7 @@ class SpotifyClient:
                 return False
             
             # Download cover art
-            success = self.download_cover_art(playlist_info, str(cover_path))
+            success = self.download_cover_art(playlist_info, str(playlist_dir / "cover.webp"))
             
             # Track statistics
             response_time = time.time() - start_time
