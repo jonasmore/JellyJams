@@ -67,47 +67,48 @@ class Config:
         self.jellyfin_url = os.getenv('JELLYFIN_URL', 'http://jellyfin:8096')
         self.api_key = os.getenv('JELLYFIN_API_KEY', '')
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
-        self.generation_interval = int(os.getenv('GENERATION_INTERVAL', '24'))
-        self.max_tracks_per_playlist = int(os.getenv('MAX_TRACKS_PER_PLAYLIST', '100'))
-        self.min_tracks_per_playlist = int(os.getenv('MIN_TRACKS_PER_PLAYLIST', '5'))
-        self.excluded_genres = os.getenv('EXCLUDED_GENRES', '').split(',') if os.getenv('EXCLUDED_GENRES') else []
-        self.excluded_artists = os.getenv('EXCLUDED_ARTISTS', '').split(',') if os.getenv('EXCLUDED_ARTISTS') else []
-        self.shuffle_tracks = os.getenv('SHUFFLE_TRACKS', 'true').lower() == 'true'
-        self.playlist_types = os.getenv('PLAYLIST_TYPES', 'Genre,Year,Artist,Personal').split(',')
-        
-        # Playlist diversity settings
-        self.min_artist_diversity = int(os.getenv('MIN_ARTIST_DIVERSITY', '5'))
-        
-        # Spotify API configuration (optional)
-        self.spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID', '')
-        self.spotify_client_secret = os.getenv('SPOTIFY_CLIENT_SECRET', '')
-        self.spotify_cover_art_enabled = os.getenv('SPOTIFY_COVER_ART_ENABLED', 'false').lower() == 'true'
-        
-        # User configuration for personalized playlists
-        self.personal_playlist_users = os.getenv('PERSONAL_PLAYLIST_USERS', 'all')
-        self.personal_playlist_new_users_default = os.getenv('PERSONAL_PLAYLIST_NEW_USERS_DEFAULT', 'true').lower() == 'true'
-        self.personal_playlist_min_user_tracks = int(os.getenv('PERSONAL_PLAYLIST_MIN_USER_TRACKS', '10'))
-        
-        # Discovery playlist diversity settings
-        self.discovery_max_songs_per_album = int(os.getenv('DISCOVERY_MAX_SONGS_PER_ALBUM', '1'))
-        self.discovery_max_songs_per_artist = int(os.getenv('DISCOVERY_MAX_SONGS_PER_ARTIST', '2'))
-        
-        # Artist playlist requirements
-        self.min_albums_per_artist = int(os.getenv('MIN_ALBUMS_PER_ARTIST', '2'))
-        
-        # Decade playlist requirements
-        self.min_albums_per_decade = int(os.getenv('MIN_ALBUMS_PER_DECADE', '3'))
-        
         # Media library scan after playlist creation
         self.trigger_library_scan = os.getenv('TRIGGER_LIBRARY_SCAN', 'true').lower() == 'true'
         
+        # Set default values for web UI configurable variables
+        self.generation_interval = 24
+        self.max_tracks_per_playlist = 100
+        self.min_tracks_per_playlist = 5
+        self.excluded_genres = []
+        self.excluded_artists = []
+        self.shuffle_tracks = True
+        self.playlist_types = ['Genre','Year','Artist','Personal']
+        
+        # Playlist diversity settings
+        self.min_artist_diversity = 5
+        
+        # Spotify API configuration (optional)
+        self.spotify_client_id = ''
+        self.spotify_client_secret = ''
+        self.spotify_cover_art_enabled = False
+        
+        # User configuration for personalized playlists
+        self.personal_playlist_users = 'all'
+        self.personal_playlist_new_users_default = True
+        self.personal_playlist_min_user_tracks = 10
+        
+        # Discovery playlist diversity settings
+        self.discovery_max_songs_per_album = 1
+        self.discovery_max_songs_per_artist = 2
+        
+        # Artist playlist requirements
+        self.min_albums_per_artist = 2
+        
+        # Decade playlist requirements
+        self.min_albums_per_decade = 3
+        
         # Scheduling configuration
-        self.auto_generate_on_startup = os.getenv('AUTO_GENERATE_ON_STARTUP', 'false').lower() == 'true'
-        self.schedule_mode = os.getenv('SCHEDULE_MODE', 'manual')  # manual, daily, interval
-        self.schedule_time = os.getenv('SCHEDULE_TIME', '00:00')  # Time for daily mode (HH:MM)
+        self.auto_generate_on_startup = False
+        self.schedule_mode = 'manual'  # manual, daily, interval
+        self.schedule_time = '00:00'  # Time for daily mode (HH:MM)
         
         # Genre grouping/mapping system
-        self.genre_grouping_enabled = os.getenv('GENRE_GROUPING_ENABLED', 'true').lower() == 'true'
+        self.genre_grouping_enabled = True
         self.genre_mappings = self._load_genre_mappings()
         
         # Load web UI settings if they exist (these override environment variables)
