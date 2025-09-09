@@ -1208,7 +1208,7 @@ class PlaylistGenerator:
             source_image = None
             for base in names:
                 for ext in exts:
-                    candidate = cover_source_dir / f"{file}{ext}"
+                    candidate = cover_source_dir / f"{base}{ext}"
                     if candidate.exists() and candidate.is_file():
                         source_image = candidate
                         self.logger.info(f"🖼️ Found decade cover art: {source_image}")
