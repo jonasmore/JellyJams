@@ -79,7 +79,7 @@ id your_user
 # uid=1000(your_user) gid=1000(your_user) groups=1000(your_user)
 ```
 
-If your Jellyfin container doesn't use PUID/GUID or the Docker Compose `user: "$PUID:PGID"` setting, it is likely running as root. In that case, you can ommit the PUID and GUID settings from both containers, or set them to `0` for JellyJams.
+If your Jellyfin container doesn't use PUID/GUID or the Docker Compose `user: "$PUID:PGID"` setting, it is likely running as root. In that case, you can omit the PUID and GUID settings from both containers, or set them to `0` for JellyJams.
 
 ### General Settings
 | Variable | Description | Required | Default |
