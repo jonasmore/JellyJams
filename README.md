@@ -227,8 +227,6 @@ Playlists are saved in Jellyfin-compatible XML format:
 2. Copy [.env.example](.env.example). to .env
 3. Enter your settings in your .env file
 
-<<<<<<< HEAD
-
 ### Unraid Deployment
 
 For Unraid users, bind app data to `/mnt/user/appdata/jellyjams/` for persistent storage. If you are using the included [docker-compose.yml](docker-compose.yml), set these values in your `.env` file.
