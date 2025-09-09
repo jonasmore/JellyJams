@@ -1,12 +1,11 @@
 services:
-  vibecodeplugin:
+  jellyjams:
     image: jonasmore/jellyjams:latest
     container_name: jellyjams
     environment:
       # Essential container settings (not configurable via web UI)
       - JELLYFIN_URL=${JELLYFIN_URL}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - PLAYLIST_FOLDER=${PLAYLIST_FOLDER}
       - ENABLE_WEB_UI=${ENABLE_WEB_UI}
       - WEB_PORT=${WEB_PORT}
       # Default fallback values (web UI settings will override these)
@@ -30,13 +29,12 @@ services:
       - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
-      # Bind mount to Unraid appdata directory
-      - /mnt/user/appdata/Jellyfin/data/playlists:/app/playlists
-      - /mnt/user/appdata/jellyjams/logs:/app/logs
-      - /mnt/user/appdata/jellyjams/config:/app/config
-      - ./data/cover:/app/cover
-      # Music directory for cover art generation (adjust path for your system)
-      - /mnt/user/media/data/music:/mnt/user/media/data/music:ro
+      # Bind appdata directory for JellyJams (config, logs, cover)
+      - /mnt/user/appdata/jellyjams:/data
+      # Jellyfin playlists directory for playlist and art management
+      - ${PLAYLIST_DIR_HOST}:/playlists
+      # Read-only access to music directory for cover art generation
+      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
     ports:
-      - "${WEB_PORT}:5000"
+      - "${WEB_PORT:-5000}:${WEB_PORT:-5000}"
     restart: unless-stopped

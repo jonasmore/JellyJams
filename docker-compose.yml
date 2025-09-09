@@ -22,7 +22,7 @@ services:
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
       - ${JELLYJAMS_DATA_DIR_HOST}:/data
-      # Ready-only access to music directory for cover art generation
+      # Read-only access to music directory for cover art generation
       - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
       # Jellyfin playlists directory for playlist and art management
       - ${PLAYLIST_DIR_HOST}:/playlists

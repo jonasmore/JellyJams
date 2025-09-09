@@ -64,7 +64,7 @@ PGID=1000
 **Notes:**
 - `JELLYJAMS_DATA_DIR_HOST` - Create this directory before starting the container.
 - `PLAYLIST_DIR_HOST` - JellyJams needs direct R/W access to Jellyfin's playlists directory.
-- `MUSIC_DIR_HOST` - Read-only access to you Jellyfin music library is needed if you want Jellyjams to pull artwork from there.
+- `MUSIC_DIR_HOST` - Read-only access to your Jellyfin music library is needed if you want JellyJams to pull artwork from there.
 - `MUSIC_DIR_CONTAINER` - The music needs to be mapped to the same directory in the container as it is in Jellyfin. This is because JellyJams gets the path of music sub-directories from the Jellyfin API, which provides the path as it is in the Jellyfin container.
 
 **User / Group Identifiers:**
@@ -420,7 +420,7 @@ volumes:
   - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
 ```
 ```.env
-PLAYLIST_DIR_HOST=-/mnt/user/appdata/jellyfin/data/playlists
+PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
 MUSIC_DIR_HOST=/mnt/user/media/data/music
 MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
 ```
@@ -494,7 +494,7 @@ EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
    - Verify playlist folder is accessible
   
 2. **Playlists not appearing in JellyJams**
-   - Ensure `PLAYLIST_DIR_HOST` = your host path to the Jellyin playlists directory
+   - Ensure `PLAYLIST_DIR_HOST` = your host path to the Jellyfin playlists directory
    - Verify Jellyfin playlists directory is mapped to /playlists
 
 3. **Cover art not copying**

@@ -21,15 +21,46 @@ I'd love your feedback on:
 - UI/UX suggestions
 
 
+## ⚠️ Important Update (2025-09-09)
+
+We changed how folders are bound into the container to simplify setup and improve compatibility.
+
+- Update your `.env` to use these variables:
+  - `JELLYJAMS_DATA_DIR_HOST=/mnt/user/appdata/jelljams`
+  - `PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists`
+  - `MUSIC_DIR_HOST=/path/to/your/music` (e.g., `/mnt/user/media/data/music`)
+  - `MUSIC_DIR_CONTAINER=/path/to/your/music` (must match the path that Jellyfin uses inside its container)
+- The old `PLAYLIST_FOLDER` environment variable is no longer used. Please remove it if present.
+- Most of the playlist settings have been moved to web UI only. Please reference `.env.example`.
+- Compose volumes should look like this:
+  - Host app data → `/data`
+  - Jellyfin playlists → `/playlists`
+  - Music (read-only) → `${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro`
+
+See `SETTINGS.md` → Docker Volume Configuration for full details and Unraid examples.
+
+### Early Development Notice
+
+This project is evolving rapidly. Things may change significantly between releases. Always review the latest `README.md` and `SETTINGS.md` when upgrading to ensure your environment variables and volume mappings are correct.
+
 ## 🐳 Quick Start
 
 Get JellyJams running in minutes with Docker:
+
+Replace the placeholder paths with your real host directories:
+
 ```bash
-docker run -p 5000:5000 jonasmore/jellyjams
+docker run -d \
+  --name jellyjams \
+  -p 5000:5000 \
+  -e JELLYFIN_URL=http://jellyfin:8096 \
+  -e JELLYFIN_API_KEY=YOUR_API_KEY \
+  -v /path/to/appdata/jellyjams:/data \
+  -v /path/to/jellyfin/config/data/playlists:/playlists \
+  jonasmore/jellyjams
 ```
 
 📦 **Docker Hub**: [jonasmore/jellyjams](https://hub.docker.com/r/jonasmore/jellyjams)
-
 ## ✨ Features
 
 ### 🎵 Playlist Generation
@@ -123,7 +154,7 @@ For artist playlists, JellyJams automatically generates professional "This is [A
 - Automatic brightness analysis for optimal text contrast
 
 #### 📁 Predefined Custom Covers
-Place custom images in your cover directory (mapped to `/app/cover`):
+Place custom images in your cover directory (stored at `/data/cover`):
 - Exact playlist name matching: `"Top Tracks - Jonas.ext"`
 - Generic fallbacks: `"Top Tracks - all.ext"`
 - Decade-specific covers: `"Back to the 1990s.ext"`
@@ -196,13 +227,13 @@ Playlists are saved in Jellyfin-compatible XML format:
 2. Copy [.env.example](.env.example). to .env
 3. Enter your settings in your .env file
 
+<<<<<<< HEAD
 
 ### Unraid Deployment
 
-For Unraid users, use bind app data to `/mnt/user/appdata/jellyjams/` for persistent storage:
+For Unraid users, bind app data to `/mnt/user/appdata/jellyjams/` for persistent storage. If you are using the included [docker-compose.yml](docker-compose.yml), set these values in your `.env` file.
 
-```env
-# Set these values in your .env
+```bash
 JELLYJAMS_DATA_DIR_HOST=/mnt/user/appdata/jellyjams
 PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
 MUSIC_DIR_HOST=/mnt/user/media/data/music
