@@ -1,17 +1,7 @@
 #!/usr/bin/env sh
 
 # JellyJams Container Startup Script
-
 echo "🎵 Starting JellyJams Generator..."
-
-# Create app-data directories
-mkdir -p /data /data/config /data/logs
-
-# Put default cover art in /data if not already there
-if [ ! -d "/data/cover" ]; then
-    echo "Moving default cover art to /data/cover"
-    cp -r /app/cover /data/
-fi
 
 # Function to run playlist generator in background
 run_generator() {
