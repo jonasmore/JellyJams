@@ -24,7 +24,6 @@ I'd love your feedback on:
 ## 🐳 Quick Start
 
 Get JellyJams running in minutes with Docker:
-
 ```bash
 docker run -p 5000:5000 jonasmore/jellyjams
 ```
@@ -87,8 +86,7 @@ JellyJams includes optional basic authentication to protect the web interface:
 
 ### Basic Authentication
 - **Default**: Disabled for easy setup
-- **Configuration**: Via environment variables or web UI settings
-- **Override**: Environment variables take precedence over web UI settings
+- **Configuration**: Via environment variables only
 
 #### Environment Variables
 ```bash
@@ -96,14 +94,6 @@ WEBUI_BASIC_AUTH_ENABLED=true
 WEBUI_BASIC_AUTH_USERNAME=your_username
 WEBUI_BASIC_AUTH_PASSWORD=your_password
 ```
-
-#### Web UI Configuration
-1. Navigate to **Settings** → **Advanced Settings**
-2. Enable "Basic Authentication"
-3. Set username and password
-4. Save settings
-
-**Note**: Environment variables override web UI settings, allowing administrators to enforce authentication policies.
 
 ## 🎨 Cover Art System
 - **Multi-Tier Cover Art System** - Comprehensive fallback system for all playlist types
@@ -161,7 +151,7 @@ Fine-tune discovery playlists for better variety:
 - Configurable via web UI settings
 
 ### 🔄 Automatic Library Refresh
-JellyJams automatically triggers a Jellyfin media library scan after playlist creation to ensure playlists appear immediately in your Jellyfin interface.
+JellyJams automatically triggers a Jellyfin media library scan after playlist creation to ensure playlists appear immediately in your Jellyfin interface. This can be disabled in .env.
 
 ## 📁 Generated Playlists
 
@@ -202,64 +192,18 @@ Playlists are saved in Jellyfin-compatible XML format:
 
 ### Docker Compose (Recommended)
 
-```yaml
-version: '3.8'
+1. Use the included [docker-compose.yml](docker-compose.yml)
+2. Copy [.env.example](.env.example). to .env
+3. Enter your settings in your .env file
 
-services:
-  jellyjams:
-    image: jonasmore/jellyjams:latest
-    container_name: jellyjams
-    environment:
-      # Default values are set here like ${VAR_NAME:-DEFAULT_VALUE}
-      # in case they aren't provided in the .env file. If you use the
-      # .env file, there is no need to change the default values.
-      
-      # Essential container settings (not configurable via web UI)
-      - JELLYFIN_URL=${JELLYFIN_URL:-http://jellyfin:8096}
-      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
-      - ENABLE_WEB_UI=${ENABLE_WEB_UI:-true}
-      - WEB_PORT=${WEB_PORT:-5000}
-      # Default fallback values (web UI settings will override these)
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
-      - GENERATION_INTERVAL=${GENERATION_INTERVAL}
-      - MAX_TRACKS_PER_PLAYLIST=${MAX_TRACKS_PER_PLAYLIST}
-      - MIN_TRACKS_PER_PLAYLIST=${MIN_TRACKS_PER_PLAYLIST}
-      - EXCLUDED_GENRES=${EXCLUDED_GENRES}
-      - SHUFFLE_TRACKS=${SHUFFLE_TRACKS}
-      - PLAYLIST_TYPES=${PLAYLIST_TYPES}
-      # Web UI Security (environment variables override web UI settings)
-      - WEBUI_BASIC_AUTH_ENABLED=${WEBUI_BASIC_AUTH_ENABLED}
-      - WEBUI_BASIC_AUTH_USERNAME=${WEBUI_BASIC_AUTH_USERNAME}
-      - WEBUI_BASIC_AUTH_PASSWORD=${WEBUI_BASIC_AUTH_PASSWORD}
-      # Discord Notifications
-      - DISCORD_WEBHOOK_ENABLED=${DISCORD_WEBHOOK_ENABLED}
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-    volumes:
-      # JellyJames app data - bind to existing host directory
-      - ./jellyjams:/data
-      # Ready-only access to music directory for cover art generation
-      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
-      # Jellyfin playlists directory for playlist and art management
-      - ${PLAYLIST_DIR_HOST}:/playlists
-    ports:
-      - "${WEB_PORT:-5000}:${WEB_PORT:-5000}"
-    restart: unless-stopped
-```
 
 ### Unraid Deployment
 
-For Unraid users, use bind app data to `/mnt/user/appdata/jallyjams/` for persistent storage:
+For Unraid users, use bind app data to `/mnt/user/appdata/jellyjams/` for persistent storage:
 
-```yaml
-    volumes:
-      # JellyJames app data
-      - /mnt/user/appdata/jellyjams:/data
-      # Ready-only access to music directory for cover art generation
-      - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
-      # Jellyfin playlists directory for playlist and art management
-      - ${PLAYLIST_DIR_HOST}:/playlists
-
-# Set these vars in your .env
+```env
+# Set these values in your .env
+JELLYJAMS_DATA_DIR_HOST=/mnt/user/appdata/jellyjams
 PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
 MUSIC_DIR_HOST=/mnt/user/media/data/music
 MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
@@ -312,21 +256,15 @@ jellyjams/
 ├── Dockerfile             # Container definition
 ├── docker-compose.yml     # Docker Compose config
 └── app/                   # Container app files
+    ├── entrypoint.sh          # App entrypoint
+    ├── start.sh               # App startup script
+    ├── requirements.txt       # Python dependencies
     ├── vibecodeplugin.py      # Main playlist generator
     ├── webapp.py              # Flask web UI
-    ├── start.sh               # Container startup script
-    ├── requirements.txt       # Python dependencies
-    └── cover                  # Default playlist images
+    └── cover                  # Customizable playlist images
         ├── Playlist Name.jpg
-    └── static/                # WebUI assets
-        └── css/
-            ├── app.css
+    └── static/                # WebUI resources
     └── templates/             # HTML templates
-        ├── base.html
-        ├── index.html
-        ├── settings.html
-        ├── playlists.html
-        └── logs.html
 ```
 
 ## 🤝 Contributing
