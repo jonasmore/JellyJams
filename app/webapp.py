@@ -175,6 +175,9 @@ class ConfigManager:
         config.auto_generate_on_startup = settings.get('auto_generate_on_startup', getattr(config, 'auto_generate_on_startup', False))
         config.schedule_mode = settings.get('schedule_mode', getattr(config, 'schedule_mode', 'manual'))
         config.schedule_time = settings.get('schedule_time', getattr(config, 'schedule_time', '00:00'))
+        
+        # Reload settings
+        config.load_web_ui_settings()
 
 config_manager = ConfigManager()
 
