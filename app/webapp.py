@@ -175,6 +175,9 @@ class ConfigManager:
         config.auto_generate_on_startup = settings.get('auto_generate_on_startup', getattr(config, 'auto_generate_on_startup', False))
         config.schedule_mode = settings.get('schedule_mode', getattr(config, 'schedule_mode', 'manual'))
         config.schedule_time = settings.get('schedule_time', getattr(config, 'schedule_time', '00:00'))
+        
+        # Reload settings
+        config.load_web_ui_settings()
 
 config_manager = ConfigManager()
 
@@ -1140,12 +1143,12 @@ def api_update_covers():
                             try:
                                 # Use the existing generator instance (DO NOT create new one - it destroys the cache!)
                                 # Find artist folder image first
-                                artist_image_path = generator._find_artist_cover_image(artist_name)
-                                if artist_image_path:
-                                    logger.info(f"🖼️ Found artist image: {artist_image_path}")
+                                artist_image = generator._find_artist_cover_image(artist_name)
+                                if artist_image:
+                                    logger.info(f"🖼️ Found artist image")
                                     # Generate custom cover art with proper parameters
-                                    cover_destination = playlist_dir / "folder.png"
-                                    custom_success = generator._generate_custom_cover_art(artist_image_path, artist_name, cover_destination)
+                                    cover_destination = playlist_dir / "folder.webp"
+                                    custom_success = generator._generate_custom_cover_art(artist_image, artist_name, cover_destination)
                                     if custom_success:
                                         logger.info(f"✅ Generated custom cover art for {artist_name}")
                                         cover_updated = True

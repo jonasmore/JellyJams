@@ -14,7 +14,7 @@ This document provides comprehensive documentation for all JellyJams configurati
 - [System Settings](#system-settings)
 - [Web UI Settings](#web-ui-settings)
 - [Docker Volume Configuration](#docker-volume-configuration)
-- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
 
 ## 🐳 Docker Hub
 
@@ -29,43 +29,77 @@ docker pull jonasmore/jellyjams:latest
 JellyJams supports two configuration methods:
 
 ### 1. Environment Variables
-Set in your `.env` file or Docker environment. These serve as defaults.
+Most app settings are now configurable only in the web UI. Some settings can only be set in your `.env` for now.
 
 ### 2. Web UI Settings
-Override environment variables through the web interface at `http://localhost:{WEB_PORT}/settings`. These settings are persistent and take precedence over environment variables.
+Enter settings at `http://localhost:{WEB_PORT}/settings`. These settings are persistent and take precedence.
 
 ## 🎯 Essential Settings
 
-### Jellyfin Server Configuration
+### Jellyfin Integration
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `JELLYFIN_URL` | Your Jellyfin server URL | ✅ Yes | http://jellyfin:8096 |
 | `JELLYFIN_API_KEY` | Jellyfin API key with media access | ✅ Yes | - |
-| `PLAYLIST_DIR_HOST` | Path to Jellyfin playlists on host | ✅ Yes | ./jellyfin/config/data/playlists |
+| `PLAYLIST_DIR_HOST` | Path to Jellyfin playlists on host | ✅ Yes | `./jellyfin/config/data/playlists` |
 | `MUSIC_DIR_HOST` | Path to music on host | No | - |
 | `MUSIC_DIR_CONTAINER` | Path to music in Jellyfin container | No | - |
+| `TRIGGER_LIBRARY_SCAN` | Jellyfin scans library after playlist generation | No | `true` |
+| `PUID` | Process/User ID for Jellyfin and JellyJams | No | `1000`
+| `PUID` | Process/Group ID for Jellyfin and JellyJams | No | `1000`
 
 **Example:**
+
 ```bash
-JELLYFIN_URL=https://jellyfin.example.com
+JELLYFIN_URL=http://jellyfin:8096
 JELLYFIN_API_KEY=your_32_character_api_key_here
-PLAYLIST_DIR_HOST=/host/path/to/jellyfin/config/data/playlists
-MUSIC_DIR_HOST=/host/path/to/music
-MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
+PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
+MUSIC_DIR_HOST=/mnt/user/media/data/music
+MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
+# Trigger Jellyfin media library scan after playlist creation (default: true)
+TRIGGER_LIBRARY_SCAN=true
+# User and group ID that Jellyfin runs with
+PUID=1000
+PGID=1000
 ```
+
 **Notes:**
+
+- `JELLYJAMS_DATA_DIR_HOST` - Create this directory before starting the container.
 - `PLAYLIST_DIR_HOST` - JellyJams needs direct R/W access to Jellyfin's playlists directory.
-- `MUSIC_DIR_HOST` - Read-only access to your Jellyfin music library is needed if you want JellyJams to pull artwork from there.
+- `MUSIC_DIR_HOST` - Read-only access to you Jellyfin music library is needed if you want Jellyjams to pull artwork from there.
 - `MUSIC_DIR_CONTAINER` - The music needs to be mapped to the same directory in the container as it is in Jellyfin. This is because JellyJams gets the path of music sub-directories from the Jellyfin API, which provides the path as it is in the Jellyfin container.
 
-### Container Settings
+**User / Group Identifiers:**
+
+Permissions issues can arise between the host OS and the container, we avoid this issue by allowing you to specify the user PUID and group PGID.
+
+Ensure any volume directories on the host are owned by the same user you specify and any permissions issues will vanish. Jellyfin and JellyJams need to use the same PUID and PGUI, because they both write to the playlists directory.
+
+Commonly on the host, PUID=1000 and PGID=1000. To find yours use `id your_user` as below:
+
+```bash
+id your_user
+# Example output:
+# uid=1000(your_user) gid=1000(your_user) groups=1000(your_user)
+```
+
+If your Jellyfin container doesn't use PUID/GUID or the Docker Compose `user: "$PUID:PGID"` setting, it is likely running as root. In that case, you can omit the PUID and GUID settings from both containers, or set them to `0` for JellyJams.
+
+### General Settings
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
+| `LOG_LEVEL` | Logging verbosity | No | `INFO` |
+| `JELLYJAMS_DATA_DIR_HOST`| Path to JellyJams app data on host | ✅ Yes | `./jellyjams` |
 | `ENABLE_WEB_UI` | Enable web interface | No | `true` |
 | `WEB_PORT` | Web UI port | No | `5000` |
-| `LOG_LEVEL` | Logging verbosity | No | `INFO` |
+| `WEBUI_BASIC_AUTH_ENABLED` | Web UI password protection | No | `false` |
+| `WEBUI_BASIC_AUTH_USERNAME` | Web UI user name | No | `admin` |
+| `WEBUI_BASIC_AUTH_PASSWORD` | Web UI password | No | `admin` |
 
 ## 🎵 Playlist Generation Settings
+
+Most playlist generation settings are now only configurable in the web UI, which is mostly self-explanitory.
 
 ### Smart Genre Grouping
 
@@ -88,66 +122,9 @@ JellyJams automatically groups similar genres into main categories to avoid crea
 - **Reduced Clutter**: Avoids dozens of micro-genre playlists
 - **Consistent Naming**: Predictable "[Genre] Radio" format
 
-### Basic Playlist Control
-| Variable | Description | Default | Options |
-|----------|-------------|---------|---------|
-| `PLAYLIST_TYPES` | Types of playlists to generate | `Genre,Year,Artist` | `Genre`, `Year`, `Artist`, `Personal` |
-| `MAX_TRACKS_PER_PLAYLIST` | Maximum tracks per playlist | `100` | `1-1000` |
-| `MIN_TRACKS_PER_PLAYLIST` | Minimum tracks required | `5` | `1-100` |
-| `SHUFFLE_TRACKS` | Randomize track order | `true` | `true`, `false` |
-| `EXCLUDED_GENRES` | Genres to skip (comma-separated) | `` | Any genre names |
-
-**Example:**
-```bash
-PLAYLIST_TYPES=Genre,Year,Artist,Personal
-MAX_TRACKS_PER_PLAYLIST=50
-MIN_TRACKS_PER_PLAYLIST=10
-SHUFFLE_TRACKS=true
-EXCLUDED_GENRES=Spoken Word,Audiobook,Podcast
-```
-
-### Artist Diversity Control
-| Variable | Description | Default | Range |
-|----------|-------------|---------|-------|
-| `MIN_ARTIST_DIVERSITY` | Minimum different artists for genre/year playlists | `5` | `1-50` |
-
-This ensures genre and year playlists have sufficient artist variety. Playlists with fewer unique artists than this threshold won't be created.
-
-### Scheduling
-| Variable | Description | Default | Range |
-|----------|-------------|---------|-------|
-| `GENERATION_INTERVAL` | Hours between automatic generation | `24` | `1-168` |
-
-## 👤 Personalized Playlist Settings
+## 👤 Personalized Playlists
 
 > **⚠️ Important**: Personal playlists require the [Jellyfin Playback Reporting Plugin](https://github.com/jellyfin/jellyfin-plugin-playbackreporting) to be installed and enabled in your Jellyfin server. This plugin provides the listening statistics needed for Top Tracks and personalized recommendations.
-
-### User Selection
-| Variable | Description | Default | Options |
-|----------|-------------|---------|---------|
-| `PERSONAL_PLAYLIST_USERS` | Users for personalized playlists | `all` | `all` or comma-separated usernames |
-| `PERSONAL_PLAYLIST_NEW_USERS_DEFAULT` | Include new users automatically | `true` | `true`, `false` |
-| `PERSONAL_PLAYLIST_MIN_USER_TRACKS` | Minimum user tracks required | `10` | `1-100` |
-
-**Examples:**
-```bash
-# Generate for all users
-PERSONAL_PLAYLIST_USERS=all
-
-# Generate for specific users only
-PERSONAL_PLAYLIST_USERS=jonas,mike,sarah
-
-# Require at least 25 tracks for personalized playlists
-PERSONAL_PLAYLIST_MIN_USER_TRACKS=25
-```
-
-### Personalized Playlist Types
-When `Personal` is included in `PLAYLIST_TYPES`, JellyJams generates:
-
-1. **Top Tracks - [Username]** - Most played songs
-2. **Discovery Mix - [Username]** - Personalized recommendations
-3. **Recent Favorites - [Username]** - Recently played/favorited
-4. **Genre Mix - [Username]** - Mixed from user's preferred genres
 
 ## 🎯 Discovery Playlist Settings
 
@@ -159,6 +136,7 @@ Control the diversity of Discovery Mix playlists:
 | `DISCOVERY_MAX_SONGS_PER_ARTIST` | Maximum songs from same artist | `2` | `1-20` |
 
 **Example:**
+
 ```bash
 # Very diverse - max 1 song per album, 1 per artist
 DISCOVERY_MAX_SONGS_PER_ALBUM=1
@@ -172,6 +150,7 @@ DISCOVERY_MAX_SONGS_PER_ARTIST=3
 ## 🎨 Cover Art Settings
 
 ### Custom Cover Art
+
 JellyJams supports custom playlist covers with intelligent fallback:
 
 1. **Exact Match**: `"Top Tracks - Jonas.ext"`
@@ -183,6 +162,7 @@ JellyJams supports custom playlist covers with intelligent fallback:
 **Docker Volume**: Put your 'cover' directory in the directory that you map to `/data`
 
 #### Other Playlist Types
+
 1. **Predefined Custom Covers** - Exact name matching
 2. **Generic Fallbacks** - Type-specific defaults
 3. **No cover art** - Playlist created without cover
@@ -200,6 +180,7 @@ For artist playlists, JellyJams automatically generates professional covers:
 | **Color Analysis** | Automatic brightness detection for optimal contrast |
 
 #### Supported Cover File Base Names and Extension
+
 - `folder`, `cover`, `artist`, `thumb`, `front`
 - `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.bmp`
 
@@ -223,6 +204,7 @@ Place custom images in your appdata/cover directory (mapped to `/data/cover/`):
 ```
 
 #### Naming Conventions
+
 | Playlist Type | Exact Match | Generic Fallback |
 |---------------|-------------|------------------|
 | **Personal** | `Top Tracks - Jonas.jpg` | `Top Tracks - all.jpg` |
@@ -236,12 +218,14 @@ Place custom images in your appdata/cover directory (mapped to `/data/cover/`):
 Refresh cover art for existing playlists without regenerating playlists:
 
 #### Web UI Usage
+
 1. Navigate to **Playlists** page (`/playlists`)
 2. Click **"Update Covers"** button
 3. Monitor real-time progress with statistics
 4. Page automatically refreshes when complete
 
 #### How It Works
+
 - **Selective Processing**: Focuses on artist playlists for efficiency
 - **Multi-tier Approach**: Tries all cover art sources in priority order
 - **Progress Tracking**: Shows updated/skipped/error counts
@@ -249,6 +233,7 @@ Refresh cover art for existing playlists without regenerating playlists:
 - **Error Handling**: Graceful fallbacks with detailed logging
 
 #### When to Use
+
 - After adding new cover art files to `/data/cover/`
 - When Spotify integration settings change
 - After updating music library with new artist folders
@@ -257,6 +242,7 @@ Refresh cover art for existing playlists without regenerating playlists:
 ### 🛠️ Cover Art Troubleshooting
 
 #### Custom Generated Covers Not Working
+
 **Symptoms**: Artist playlists have no cover art or fallback to album or generic covers
 
 **Solutions**:
@@ -296,9 +282,11 @@ Refresh cover art for existing playlists without regenerating playlists:
    ```
 
 #### Predefined Covers Not Loading
+
 **Symptoms**: Custom covers in `/data/cover/` are ignored
 
 **Solutions**:
+
 1. **Verify Docker Volume Mount**:
    - Put your 'cover' directory in your 'appdata' directory.
    ```yaml
@@ -322,9 +310,11 @@ Refresh cover art for existing playlists without regenerating playlists:
    - Other formats may not be recognized
 
 #### Spotify Integration Issues
+
 **Symptoms**: Spotify cover art not downloading
 
 **Solutions**:
+
 1. **Test Connection in Web UI**:
    - Go to Settings → Spotify Integration
    - Click "Test Connection"
@@ -343,9 +333,11 @@ Refresh cover art for existing playlists without regenerating playlists:
    - Consider reducing concurrent requests
 
 #### Debug Logging
+
 Enable comprehensive cover art debugging:
+
 ```bash
-LOG_LEVEL=DEBUG
+JELLYJAMS_LOG_LEVEL=DEBUG
 ```
 
 This provides detailed information about:
@@ -359,6 +351,7 @@ This provides detailed information about:
 ## 🎧 Spotify Integration Settings
 
 ### Spotify API Configuration
+
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `SPOTIFY_CLIENT_ID` | Spotify API Client ID | For cover art | - |
@@ -366,11 +359,13 @@ This provides detailed information about:
 | `SPOTIFY_COVER_ART_ENABLED` | Enable Spotify cover downloads | No | `false` |
 
 **Setup Steps:**
+
 1. Create app at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 2. Get Client ID and Client Secret
 3. Enable feature in settings
 
 **Example:**
+
 ```bash
 SPOTIFY_CLIENT_ID=your_spotify_client_id_here
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
@@ -378,6 +373,7 @@ SPOTIFY_COVER_ART_ENABLED=true
 ```
 
 ### Spotify Features
+
 - Downloads cover art for "This is [Artist]!" playlists
 - Automatic fallback if custom covers not found
 - Statistics tracking and connection testing
@@ -386,6 +382,7 @@ SPOTIFY_COVER_ART_ENABLED=true
 ## 🔧 System Settings
 
 ### Media Library Integration
+
 | Variable | Description | Default | Options |
 |----------|-------------|---------|---------|
 | `TRIGGER_LIBRARY_SCAN` | Auto-refresh Jellyfin library | `true` | `true`, `false` |
@@ -393,6 +390,7 @@ SPOTIFY_COVER_ART_ENABLED=true
 When enabled, JellyJams triggers a Jellyfin media library scan after playlist creation to ensure playlists appear immediately.
 
 ### Logging
+
 | Variable | Description | Default | Options |
 |----------|-------------|---------|---------|
 | `LOG_LEVEL` | Logging verbosity | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -406,6 +404,7 @@ When enabled, JellyJams triggers a Jellyfin media library scan after playlist cr
 ## 🌐 Web UI Settings
 
 ### Settings Page Features
+
 The web UI settings page (`/settings`) provides:
 
 - **Connection Testing** - Test Jellyfin API connectivity
@@ -416,6 +415,7 @@ The web UI settings page (`/settings`) provides:
 - **Persistent Storage** - Settings saved to `/data/config/settings.json`
 
 ### Settings Priority
+
 1. **Web UI Settings** (highest priority)
 2. **Environment Variables** (fallback)
 3. **Default Values** (if nothing set)
@@ -423,6 +423,7 @@ The web UI settings page (`/settings`) provides:
 ## 🐳 Docker Volume Configuration
 
 ### Required Volumes
+
 ```yaml
 volumes:
   # JellyJames app data (config, logs, cover)
@@ -448,68 +449,9 @@ volumes:
   - ${MUSIC_DIR_HOST}:${MUSIC_DIR_CONTAINER}:ro
 ```
 ```.env
-PLAYLIST_DIR_HOST=/mnt/user/appdata/jellyfin/data/playlists
+PLAYLIST_DIR_HOST=-/mnt/user/appdata/jellyfin/data/playlists
 MUSIC_DIR_HOST=/mnt/user/media/data/music
 MUSIC_DIR_CONTAINER=/mnt/user/media/data/music
-```
-
-## 📝 Examples
-
-### Basic Setup
-```bash
-# .env file for basic setup
-JELLYFIN_URL=http://localhost:8096
-JELLYFIN_API_KEY=your_api_key_here
-PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
-PLAYLIST_TYPES=Genre,Year,Artist
-MAX_TRACKS_PER_PLAYLIST=50
-MIN_TRACKS_PER_PLAYLIST=10
-```
-
-### Advanced Setup with Personalization
-```bash
-# .env file for advanced setup
-JELLYFIN_URL=https://jellyfin.example.com
-JELLYFIN_API_KEY=your_api_key_here
-PLAYLIST_DIR_HOST=/path/to/jellyfin/config/data/playlists
-MUSIC_DIR_HOST=/host/path/to/music
-MUSIC_DIR_CONTAINER=/jellyfin/container/path/to/music
-
-# Playlist generation
-PLAYLIST_TYPES=Genre,Year,Artist,Personal
-MAX_TRACKS_PER_PLAYLIST=75
-MIN_TRACKS_PER_PLAYLIST=15
-MIN_ARTIST_DIVERSITY=8
-
-# Personalized playlists
-PERSONAL_PLAYLIST_USERS=jonas,sarah,mike
-PERSONAL_PLAYLIST_MIN_USER_TRACKS=20
-
-# Discovery diversity
-DISCOVERY_MAX_SONGS_PER_ALBUM=1
-DISCOVERY_MAX_SONGS_PER_ARTIST=2
-
-# Spotify integration
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-SPOTIFY_COVER_ART_ENABLED=true
-
-# System settings
-TRIGGER_LIBRARY_SCAN=true
-LOG_LEVEL=INFO
-GENERATION_INTERVAL=12
-```
-
-### Genre Exclusion Examples
-```bash
-# Exclude spoken content
-EXCLUDED_GENRES=Audiobook,Podcast,Spoken Word
-
-# Exclude holiday music
-EXCLUDED_GENRES=Christmas,Holiday
-
-# Multiple exclusions
-EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
 ```
 
 ## 🔍 Troubleshooting
@@ -522,7 +464,7 @@ EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
    - Verify playlist folder is accessible
   
 2. **Playlists not appearing in JellyJams**
-   - Ensure `PLAYLIST_DIR_HOST` = your host path to the Jellyfin playlists directory
+   - Ensure `PLAYLIST_DIR_HOST` = your host path to the Jellyin playlists directory
    - Verify Jellyfin playlists directory is mapped to /playlists
 
 3. **Cover art not copying**
@@ -542,7 +484,9 @@ EXCLUDED_GENRES=Classical,Opera,Spoken Word,Audiobook,Podcast
    - Check Spotify app permissions
 
 ### Debug Mode
+
 Enable detailed logging:
+
 ```bash
 LOG_LEVEL=DEBUG
 ```
